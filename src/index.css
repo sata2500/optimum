@@ -927,3 +927,39 @@ select option {
   cursor: pointer;
   border: 2px solid rgba(255,255,255,0.15);
 }
+
+/* ── PRINTING / REPORT STYLES ───────────────────────────────────────── */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  
+  .bottom-nav, 
+  .app-header, 
+  .no-print, 
+  button, 
+  select, 
+  input {
+    display: none !important;
+  }
+  
+  .app-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  
+  .glass-panel {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+  
+  h1, h2, h3, h4, span, p, strong, td, th {
+    color: #000000 !important;
+  }
+}
+
