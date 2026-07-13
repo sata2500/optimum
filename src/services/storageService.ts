@@ -1,4 +1,5 @@
 import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
+import { supabase } from './supabaseClient';
 
 export interface Activity {
   id: string;
@@ -247,6 +248,154 @@ export const storageService = {
 
   clearAllLogs(): void {
     this.saveLogs([]);
+  },
+
+  // --- CLOUD OPERATIONS (SUPABASE) ---
+  async syncLogsWithCloud(userId: string): Promise<TimeLog[]> {
+    if (!supabase) return this.getLogs();
+    try {
+      const { data: cloudLogs, error } = await supabase
+        .from('time_logs')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      const localLogs = this.getLogs();
+      const mergedMap = new Map<string, TimeLog>();
+
+      // Index local logs
+      localLogs.forEach(l => mergedMap.set(l.id, l));
+
+      const logsToInsertInCloud: any[] = [];
+      const logsToUpdateInCloud: any[] = [];
+
+      // Process cloud logs
+      if (cloudLogs) {
+        cloudLogs.forEach((c: any) => {
+          const mappedCloudLog: TimeLog = {
+            id: c.id,
+            timestamp: Number(c.timestamp),
+            date: c.date,
+            timeSlot: c.time_slot,
+            activityId: c.activity_id,
+            activityCode: c.activity_code,
+            activityName: c.activity_name,
+            categoryId: c.category_id,
+            categoryName: c.category_name,
+            categoryColor: c.category_color,
+            notes: c.notes || undefined,
+            synced: true,
+            updatedAt: Number(c.updated_at),
+          };
+
+          const local = mergedMap.get(c.id);
+          if (!local) {
+            mergedMap.set(c.id, mappedCloudLog);
+          } else {
+            if (mappedCloudLog.updatedAt > local.updatedAt) {
+              mergedMap.set(c.id, mappedCloudLog);
+            } else if (local.updatedAt > mappedCloudLog.updatedAt || !local.synced) {
+              logsToUpdateInCloud.push(local);
+            }
+          }
+        });
+      }
+
+      // Check local logs not in cloud
+      localLogs.forEach(l => {
+        const inCloud = cloudLogs?.some((c: any) => c.id === l.id);
+        if (!inCloud) {
+          logsToInsertInCloud.push(l);
+        }
+      });
+
+      // Insert new to cloud
+      if (logsToInsertInCloud.length > 0) {
+        const inserts = logsToInsertInCloud.map(l => ({
+          id: l.id,
+          user_id: userId,
+          timestamp: l.timestamp,
+          date: l.date,
+          time_slot: l.timeSlot,
+          activity_id: l.activityId,
+          activity_code: l.activityCode,
+          activity_name: l.activityName,
+          category_id: l.categoryId,
+          category_name: l.categoryName,
+          category_color: l.categoryColor,
+          notes: l.notes || null,
+          updated_at: l.updatedAt
+        }));
+        const { error: insErr } = await supabase.from('time_logs').insert(inserts);
+        if (insErr) console.error('Cloud insert error:', insErr.message);
+      }
+
+      // Update in cloud
+      for (const l of logsToUpdateInCloud) {
+        const { error: updErr } = await supabase
+          .from('time_logs')
+          .update({
+            timestamp: l.timestamp,
+            date: l.date,
+            time_slot: l.timeSlot,
+            activity_id: l.activityId,
+            activity_code: l.activityCode,
+            activity_name: l.activityName,
+            category_id: l.categoryId,
+            category_name: l.categoryName,
+            category_color: l.categoryColor,
+            notes: l.notes || null,
+            updated_at: l.updatedAt
+          })
+          .eq('id', l.id)
+          .eq('user_id', userId);
+        if (updErr) console.error('Cloud update error:', updErr.message);
+      }
+
+      const finalLogs = Array.from(mergedMap.values()).map(l => ({ ...l, synced: true }));
+      this.saveLogs(finalLogs);
+      return finalLogs;
+    } catch (err) {
+      console.error('Synchronization failed:', err);
+      return this.getLogs();
+    }
+  },
+
+  async addLogToCloud(log: TimeLog, userId: string): Promise<void> {
+    if (!supabase) return;
+    try {
+      await supabase.from('time_logs').upsert({
+        id: log.id,
+        user_id: userId,
+        timestamp: log.timestamp,
+        date: log.date,
+        time_slot: log.timeSlot,
+        activity_id: log.activityId,
+        activity_code: log.activityCode,
+        activity_name: log.activityName,
+        category_id: log.categoryId,
+        category_name: log.categoryName,
+        category_color: log.categoryColor,
+        notes: log.notes || null,
+        updated_at: log.updatedAt
+      });
+    } catch (err) {
+      console.error('Add to cloud failed:', err);
+    }
+  },
+
+  async deleteLogFromCloud(id: string, userId: string): Promise<void> {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('time_logs')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+    } catch (err) {
+      console.error('Delete from cloud failed:', err);
+    }
   },
 
   // --- SYNC / IMPORT-EXPORT ---

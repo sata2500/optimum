@@ -9,6 +9,7 @@ import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
+import Auth from './Auth';
 
 interface SettingsProps {
   categories: Category[];
@@ -17,6 +18,8 @@ interface SettingsProps {
   onSettingsChange: (newSettings: AppSettings) => void;
   onBackupImport: () => void;
   onResetAll: () => void;
+  user: any;
+  onLogout: () => void;
 }
 
 type SubTab = 'general' | 'categories' | 'backup';
@@ -63,6 +66,8 @@ export default function Settings({
   onSettingsChange,
   onBackupImport,
   onResetAll,
+  user,
+  onLogout,
 }: SettingsProps) {
   const toast = useToast();
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('general');
@@ -110,6 +115,12 @@ export default function Settings({
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
+  useEffect(() => {
+    if (user && user.user_metadata?.full_name) {
+      setFormUserName(user.user_metadata.full_name);
+    }
+  }, [user]);
 
   const handleInstallApp = async () => {
     if (!deferredPrompt) return;
@@ -470,7 +481,10 @@ export default function Settings({
 
       {/* ── PANEL 1: GENERAL SETTINGS ─────────────────────────────── */}
       {activeSubTab === 'general' && (
-        <form onSubmit={handleSaveGeneralSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <Auth user={user} onLogout={onLogout} />
+          
+          <form onSubmit={handleSaveGeneralSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           {/* Profile Settings */}
           <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -646,7 +660,8 @@ export default function Settings({
             <Save size={16} />
             {isSavingGeneral ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
           </button>
-        </form>
+          </form>
+        </div>
       )}
 
       {/* ── PANEL 2: CATEGORIES & ACTIVITIES ───────────────────────── */}
