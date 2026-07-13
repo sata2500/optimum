@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Settings as SettingsIcon, BarChart3, Timer, CloudSync } from 'lucide-react';
+import { LayoutDashboard, Settings as SettingsIcon, BarChart3, Timer, CloudSync, User } from 'lucide-react';
 import { storageService } from './services/storageService';
 import type { Category, TimeLog, AppSettings } from './services/storageService';
 import { notificationService } from './services/notificationService';
@@ -10,8 +10,9 @@ import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
 import Analytics from './components/Analytics';
 import Pomodoro from './components/Pomodoro';
+import Profile from './components/Profile';
 
-type Tab = 'dashboard' | 'pomodoro' | 'analytics' | 'settings';
+type Tab = 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -173,6 +174,7 @@ export default function App() {
     { key: 'dashboard', label: 'Panel',    icon: LayoutDashboard },
     { key: 'pomodoro',  label: 'Pomodoro', icon: Timer           },
     { key: 'analytics', label: 'Analiz',   icon: BarChart3       },
+    { key: 'profile',   label: 'Profil',   icon: User            },
     { key: 'settings',  label: 'Ayarlar',  icon: SettingsIcon    },
   ];
 
@@ -219,11 +221,20 @@ export default function App() {
             onLogDelete={handleLogDelete}
             pendingLog={pendingLog}
             clearPendingLog={() => setPendingLog(null)}
+            user={user}
           />
         )}
         {activeTab === 'pomodoro' && <Pomodoro />}
         {activeTab === 'analytics' && (
           <Analytics categories={categories} logs={logs} />
+        )}
+        {activeTab === 'profile' && (
+          <Profile
+            categories={categories}
+            logs={logs}
+            user={user}
+            onLogout={handleLogout}
+          />
         )}
         {activeTab === 'settings' && (
           <Settings

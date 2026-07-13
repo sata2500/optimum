@@ -81,6 +81,10 @@ export default function Settings({
   const [formNotifications, setFormNotifications] = useState<boolean>(settings.notificationsEnabled);
   const [notifPermission, setNotifPermission] = useState<string>('default');
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
+  
+  // Goals & Gamification States
+  const [formDailyProductiveTargetHours, setFormDailyProductiveTargetHours] = useState<number>(settings.dailyProductiveTargetHours || 4);
+  const [formCategoryTargets, setFormCategoryTargets] = useState<{ [catId: string]: number }>(settings.categoryTargets || {});
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isAppInstalled, setIsAppInstalled] = useState<boolean>(false);
@@ -128,6 +132,13 @@ export default function Settings({
     const { outcome } = await deferredPrompt.userChoice;
     console.log(`User response to install prompt: ${outcome}`);
     setDeferredPrompt(null);
+  };
+
+  const handleUpdateCategoryTarget = (catId: string, hours: number) => {
+    setFormCategoryTargets(prev => ({
+      ...prev,
+      [catId]: hours
+    }));
   };
 
   // --- CATEGORIES & ACTIVITIES STATES ---
@@ -196,6 +207,8 @@ export default function Settings({
       endHour: formEnd,
       notificationsEnabled: isNotifEnabled,
       userName: formUserName.trim() || 'Kullanıcı',
+      dailyProductiveTargetHours: formDailyProductiveTargetHours,
+      categoryTargets: formCategoryTargets,
     });
 
     setIsSavingGeneral(false);
@@ -610,6 +623,61 @@ export default function Settings({
                   onChange={e => setFormEnd(e.target.value)}
                   style={{ colorScheme: 'dark' }}
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Productivity Targets */}
+          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Zap size={18} color="var(--color-primary)" />
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Üretkenlik Hedefleri</h3>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                  Günlük hedef çalışma sürelerinizi saat bazında ayarlayın
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '600' }}>Günlük Toplam Üretken Süre Hedefi</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    step="0.5"
+                    value={formDailyProductiveTargetHours}
+                    onChange={e => setFormDailyProductiveTargetHours(parseFloat(e.target.value) || 4)}
+                    style={{ width: '70px', padding: '6px', textAlign: 'center' }}
+                  />
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Saat</span>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-text-secondary)', display: 'block' }}>Kategori Hedefleri (Saat)</span>
+                {categories.map(cat => (
+                  <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: cat.color }} />
+                      <span style={{ fontSize: '0.82rem' }}>{cat.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        step="0.5"
+                        value={formCategoryTargets[cat.id] ?? 0}
+                        onChange={e => handleUpdateCategoryTarget(cat.id, parseFloat(e.target.value) || 0)}
+                        style={{ width: '70px', padding: '6px', textAlign: 'center' }}
+                      />
+                      <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Saat</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

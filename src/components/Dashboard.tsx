@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
-  AlertCircle, ChevronRight, X, ChevronLeft, Calendar, Plus, Trash2, ZoomIn, ZoomOut, Maximize, Minimize 
+  AlertCircle, ChevronRight, X, ChevronLeft, Calendar, Plus, Trash2, ZoomIn, ZoomOut, Maximize, Minimize,
+  Flame, Zap
 } from 'lucide-react';
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
@@ -14,6 +15,7 @@ interface DashboardProps {
   onLogDelete: (id: string) => Promise<void>;
   pendingLog: { slot: string; date: string } | null;
   clearPendingLog: () => void;
+  user: any;
 }
 
 
@@ -28,6 +30,7 @@ export default function Dashboard({
   onLogDelete,
   pendingLog,
   clearPendingLog,
+  user,
 }: DashboardProps) {
 
   // Excel Grid Configuration & Filters
@@ -214,9 +217,78 @@ export default function Dashboard({
     };
 
     checkMissed();
-    const interval = setInterval(checkMissed, 60000);
-    return () => clearInterval(interval);
   }, [logs, settings]);
+
+  // --- TODAY PRODUCTIVITY STATS & GOALS ---
+  const todayProductiveStats = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayLogs = logs.filter(l => l.date === todayStr);
+    const intervalMinutes = settings.intervalMinutes;
+
+    let totalProdMins = 0;
+    const categoryProdMins: { [catId: string]: number } = {};
+
+    todayLogs.forEach(l => {
+      const cat = categories.find(c => c.id === l.categoryId);
+      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
+      const mins = l.durationMinutes || intervalMinutes;
+      if (isProductive) {
+        totalProdMins += mins;
+        categoryProdMins[l.categoryId] = (categoryProdMins[l.categoryId] || 0) + mins;
+      }
+    });
+
+    const totalProdHours = totalProdMins / 60;
+    return {
+      totalProdHours,
+      categoryHours: Object.fromEntries(
+        Object.entries(categoryProdMins).map(([catId, mins]) => [catId, mins / 60])
+      )
+    };
+  }, [logs, categories, settings.intervalMinutes]);
+
+  // --- STREAK (ZİNCİR) HESAPLAMA ---
+  const currentStreak = useMemo(() => {
+    if (logs.length === 0) return 0;
+    const dailyGoalHours = settings.dailyProductiveTargetHours || 4;
+    const intervalMinutes = settings.intervalMinutes;
+
+    const dailyProductiveMinutes: { [date: string]: number } = {};
+    logs.forEach(l => {
+      const cat = categories.find(c => c.id === l.categoryId);
+      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
+      if (isProductive) {
+        const mins = l.durationMinutes || intervalMinutes;
+        dailyProductiveMinutes[l.date] = (dailyProductiveMinutes[l.date] || 0) + mins;
+      }
+    });
+
+    let streak = 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayMins = dailyProductiveMinutes[todayStr] || 0;
+    const todayMet = (todayMins / 60) >= dailyGoalHours;
+
+    const checkDate = new Date();
+    checkDate.setDate(checkDate.getDate() - 1);
+
+    while (true) {
+      const dateKey = checkDate.toISOString().split('T')[0];
+      const dayMins = dailyProductiveMinutes[dateKey] || 0;
+      const met = (dayMins / 60) >= dailyGoalHours;
+      if (met) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    if (todayMet) {
+      streak++;
+    }
+
+    return streak;
+  }, [logs, categories, settings]);
 
   const isTimeInActiveRange = (timeMinutes: number, startMin: number, endMin: number): boolean => {
     if (endMin >= startMin) {
@@ -529,30 +601,146 @@ export default function Dashboard({
         </div>
       )}
       
-      {/* Title Section (Mockup Style) */}
+      {/* Title Section with Dynamic Avatar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
         <h1 style={{ fontSize: '1.8rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif', color: '#fff' }}>
           Zaman Paneli
         </h1>
-        <div 
-          style={{ 
-            width: '38px', 
-            height: '38px', 
-            borderRadius: '50%', 
-            background: 'rgba(6, 182, 212, 0.1)', 
-            border: '2px solid #06b6d4', 
-            color: '#06b6d4', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            fontWeight: '800', 
-            fontSize: '0.95rem',
-            boxShadow: '0 0 10px rgba(6, 182, 212, 0.15)',
-            fontFamily: 'Outfit, sans-serif'
-          }}
-        >
-          {(settings.userName || 'K')[0].toUpperCase()}
+        {user?.user_metadata?.avatar_url ? (
+          <img 
+            src={user.user_metadata.avatar_url} 
+            alt="Avatar" 
+            style={{ 
+              width: '38px', 
+              height: '38px', 
+              borderRadius: '50%', 
+              border: '2px solid var(--color-primary)', 
+              boxShadow: '0 0 10px var(--color-primary-glow)',
+              objectFit: 'cover'
+            }} 
+          />
+        ) : (
+          <div 
+            style={{ 
+              width: '38px', 
+              height: '38px', 
+              borderRadius: '50%', 
+              background: 'rgba(6, 182, 212, 0.1)', 
+              border: '2px solid #06b6d4', 
+              color: '#06b6d4', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              fontWeight: '800', 
+              fontSize: '0.95rem',
+              boxShadow: '0 0 10px rgba(6, 182, 212, 0.15)',
+              fontFamily: 'Outfit, sans-serif'
+            }}
+          >
+            {(settings.userName || 'K')[0].toUpperCase()}
+          </div>
+        )}
+      </div>
+
+      {/* Daily Productive Target & Streak Widget */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          padding: '16px 20px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '12px',
+          borderColor: currentStreak > 0 ? 'rgba(251, 146, 60, 0.25)' : 'var(--color-border)',
+          background: currentStreak > 0 ? 'rgba(251, 146, 60, 0.02)' : 'rgba(255, 255, 255, 0.01)'
+        }}
+      >
+        {/* Streak and Total Today Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div 
+              style={{ 
+                background: currentStreak > 0 ? 'rgba(251, 146, 60, 0.15)' : 'rgba(255,255,255,0.03)', 
+                padding: '4px 10px', 
+                borderRadius: '20px', 
+                fontSize: '0.78rem', 
+                fontWeight: 'bold', 
+                color: currentStreak > 0 ? '#fb923c' : 'var(--color-text-secondary)',
+                border: `1px solid ${currentStreak > 0 ? 'rgba(251, 146, 60, 0.3)' : 'var(--color-border)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Flame size={14} fill={currentStreak > 0 ? '#fb923c' : 'transparent'} />
+              {currentStreak} Günlük Seri
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+            <Zap size={14} color="#eab308" fill="#eab308" />
+            <span>Bugün: <strong>{todayProductiveStats.totalProdHours.toFixed(1)}</strong> / {settings.dailyProductiveTargetHours || 4} Saat</span>
+          </div>
         </div>
+
+        {/* Total Productive progress bar */}
+        {(() => {
+          const target = settings.dailyProductiveTargetHours || 4;
+          const ratio = Math.min(100, Math.round((todayProductiveStats.totalProdHours / target) * 100));
+          return (
+            <div style={{ width: '100%' }}>
+              <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                <div 
+                  style={{ 
+                    width: `${ratio}%`, 
+                    height: '100%', 
+                    background: 'linear-gradient(90deg, var(--color-primary) 0%, #22c55e 100%)', 
+                    borderRadius: '4px',
+                    transition: 'width 0.4s ease'
+                  }} 
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Category Targets Mini Bars */}
+        {(() => {
+          const targets = settings.categoryTargets || {};
+          const activeTargets = Object.entries(targets).filter(([_, targetVal]) => targetVal > 0);
+          if (activeTargets.length === 0) return null;
+
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 14px', marginTop: '4px', borderTop: '1px solid var(--color-border)', paddingTop: '10px' }}>
+              {activeTargets.map(([catId, targetVal]) => {
+                const cat = categories.find(c => c.id === catId);
+                if (!cat) return null;
+                const hoursLogged = todayProductiveStats.categoryHours[catId] || 0;
+                const ratio = Math.min(100, Math.round((hoursLogged / targetVal) * 100));
+
+                return (
+                  <div key={catId} style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: '1 1 120px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{cat.name}</span>
+                      <strong style={{ color: '#fff' }}>{hoursLogged.toFixed(1)}/{targetVal}s</strong>
+                    </div>
+                    {/* Micro bar */}
+                    <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div 
+                        style={{ 
+                          width: `${ratio}%`, 
+                          height: '100%', 
+                          background: cat.color, 
+                          borderRadius: '2px',
+                          transition: 'width 0.4s ease'
+                        }} 
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Segmented Period Selector (Mockup Style) */}

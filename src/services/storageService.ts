@@ -39,6 +39,8 @@ export interface AppSettings {
   endHour: string; // HH:MM, e.g. "00:30"
   notificationsEnabled: boolean;
   userName?: string; // Profile name
+  dailyProductiveTargetHours?: number; // Total productive hours goal per day
+  categoryTargets?: { [catId: string]: number }; // Individual category goals
 }
 
 const STORAGE_KEYS = {
@@ -138,6 +140,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   endHour: '00:30',
   notificationsEnabled: true,
   userName: 'Kullanıcı',
+  dailyProductiveTargetHours: 4,
+  categoryTargets: {
+    egitim: 2,
+    market: 3,
+    ibadet: 1
+  }
 };
 
 export const storageService = {
