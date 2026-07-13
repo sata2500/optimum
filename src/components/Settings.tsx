@@ -77,13 +77,47 @@ export default function Settings({
   const [notifPermission, setNotifPermission] = useState<string>('default');
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
 
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isAppInstalled, setIsAppInstalled] = useState<boolean>(false);
+
   useEffect(() => {
     const checkPerm = async () => {
       const status = await notificationService.getPermissionStatus();
       setNotifPermission(status);
     };
     checkPerm();
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setIsAppInstalled(true);
+      toast.success('Optimum cihazınıza başarıyla yüklendi! Ana ekrandan hızlıca erişebilirsiniz.');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsAppInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to install prompt: ${outcome}`);
+    setDeferredPrompt(null);
+  };
 
   // --- CATEGORIES & ACTIVITIES STATES ---
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
@@ -447,8 +481,15 @@ export default function Settings({
                 </span>
               </div>
               <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Profil Ayarları</h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0 }}>Profil Ayarları</h3>
+                  {isAppInstalled && (
+                    <span style={{ fontSize: '0.65rem', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '2px 6px', borderRadius: '8px', fontWeight: 'bold', display: 'inline-block', lineHeight: '1' }}>
+                      PWA Yüklü
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                   Uygulamadaki isminiz ve avatarınız
                 </p>
               </div>
@@ -467,6 +508,32 @@ export default function Settings({
               />
             </div>
           </div>
+
+          {/* Install PWA Prompt */}
+          {deferredPrompt && (
+            <div className="glass-panel animate-scale-in" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--color-primary-glow)', background: 'rgba(139,92,246,0.03)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(139, 92, 246, 0.1)', border: '1px solid var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Download size={18} color="var(--color-primary)" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Optimum'u Yükleyin</h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                    Çevrimdışı erişim ve hızlı kullanım için ana ekrana ekleyin
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleInstallApp}
+                style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '12px' }}
+              >
+                <Download size={14} />
+                Uygulamayı Yükle
+              </button>
+            </div>
+          )}
 
           {/* Interval Cards */}
           <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>

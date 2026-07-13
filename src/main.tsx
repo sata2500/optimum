@@ -10,4 +10,12 @@ createRoot(document.getElementById('root')!).render(
       <App />
     </ToastProvider>
   </StrictMode>,
-)
+);
+
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('Service Worker registered successfully:', reg))
+      .catch(err => console.error('Service Worker registration failed:', err));
+  });
+}

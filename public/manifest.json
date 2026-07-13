@@ -1,0 +1,22 @@
+{
+  "short_name": "Optimum",
+  "name": "Optimum Zaman Takip ve Analiz",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "type": "image/jpeg",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/logo.jpg",
+      "type": "image/jpeg",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#070a13",
+  "theme_color": "#070a13",
+  "display": "standalone",
+  "orientation": "portrait"
+}
