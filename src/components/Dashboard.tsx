@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   AlertCircle, ChevronRight, X, ChevronLeft, Calendar, Plus, Trash2, ZoomIn, ZoomOut, Maximize, Minimize 
 } from 'lucide-react';
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
+import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
 
 interface DashboardProps {
   categories: Category[];
@@ -15,29 +16,7 @@ interface DashboardProps {
   clearPendingLog: () => void;
 }
 
-// Helpers for time calculation
-function parseTimeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-}
 
-function generateSlots(start: string, end: string, interval: number): string[] {
-  const slots: string[] = [];
-  const startMin = parseTimeToMinutes(start);
-  let endMin = parseTimeToMinutes(end);
-  
-  if (endMin < startMin) {
-    endMin += 1440; // Spans midnight
-  }
-  
-  for (let min = startMin; min <= endMin; min += interval) {
-    const totalMin = min % 1440;
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-  }
-  return slots;
-}
 
 const DAYS_SHORT_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
@@ -342,17 +321,29 @@ export default function Dashboard({
     }
   };
 
-  // Cell Interaction
-  const getLogForSlot = (dateStr: string, slotStr: string): TimeLog | undefined => {
-    const slotMin = parseTimeToMinutes(slotStr);
-    return logs.find(l => {
-      if (l.date !== dateStr) return false;
+  // Pre-index logs by date and slot for O(1) rendering performance
+  const logsMap = useMemo(() => {
+    const map = new Map<string, TimeLog>();
+    const step = getGridIntervalMinutes();
+    logs.forEach(l => {
       const startMin = parseTimeToMinutes(l.timeSlot);
-      const duration = l.durationMinutes || getGridIntervalMinutes();
-      const endMin = startMin + duration;
-      return slotMin >= startMin && slotMin < endMin;
+      const duration = l.durationMinutes || step;
+      // Calculate all slots covered by this log entry
+      for (let min = startMin; min < startMin + duration; min += step) {
+        const totalMin = min % 1440;
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        const slotKey = `${l.date}_${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        map.set(slotKey, l);
+      }
     });
-  };
+    return map;
+  }, [logs, settings.intervalMinutes]);
+
+  // Cell Interaction
+  const getLogForSlot = useCallback((dateStr: string, slotStr: string): TimeLog | undefined => {
+    return logsMap.get(`${dateStr}_${slotStr}`);
+  }, [logsMap]);
 
   const handleCellClick = (slot: string, date: string, existingLog: TimeLog | null) => {
     setActiveCell({ slot, date });
@@ -560,7 +551,7 @@ export default function Dashboard({
             fontFamily: 'Outfit, sans-serif'
           }}
         >
-          K
+          {(settings.userName || 'K')[0].toUpperCase()}
         </div>
       </div>
 

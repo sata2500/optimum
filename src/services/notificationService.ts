@@ -1,12 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { storageService } from './storageService';
-
-// Time calculation helper functions
-function parseTimeToMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-}
+import { parseTimeToMinutes } from '../utils/timeUtils';
 
 function isTimeInActiveRange(timeMinutes: number, startMin: number, endMin: number): boolean {
   if (endMin >= startMin) {

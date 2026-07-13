@@ -69,6 +69,7 @@ export default function Settings({
   const [confirmState, setConfirmState] = useState<ConfirmState>(INITIAL_CONFIRM);
 
   // --- GENERAL SETTINGS STATES ---
+  const [formUserName, setFormUserName] = useState<string>(settings.userName || 'Kullanıcı');
   const [formInterval, setFormInterval] = useState<number>(settings.intervalMinutes);
   const [formStart, setFormStart] = useState<string>(settings.startHour);
   const [formEnd, setFormEnd] = useState<string>(settings.endHour);
@@ -89,6 +90,7 @@ export default function Settings({
   const [showCatModal, setShowCatModal] = useState<boolean>(false);
   const [catName, setCatName] = useState<string>('');
   const [catColor, setCatColor] = useState<string>('#3b82f6');
+  const [catIsProductive, setCatIsProductive] = useState<boolean>(true);
 
   const [showActModal, setShowActModal] = useState<boolean>(false);
   const [targetCatId, setTargetCatId] = useState<string>('');
@@ -148,6 +150,7 @@ export default function Settings({
       startHour: formStart,
       endHour: formEnd,
       notificationsEnabled: isNotifEnabled,
+      userName: formUserName.trim() || 'Kullanıcı',
     });
 
     setIsSavingGeneral(false);
@@ -178,10 +181,12 @@ export default function Settings({
       setActiveCategory(category);
       setCatName(category.name);
       setCatColor(category.color);
+      setCatIsProductive(category.isProductive !== false);
     } else {
       setActiveCategory(null);
       setCatName('');
       setCatColor('#3b82f6');
+      setCatIsProductive(true);
     }
     setShowCatModal(true);
   };
@@ -194,7 +199,7 @@ export default function Settings({
       updatedCategories = categories.map(cat => {
         if (cat.id === activeCategory.id) {
           const preset = PRESET_COLORS.find(p => p.color === catColor) || { text: '#ffffff' };
-          return { ...cat, name: catName.trim(), color: catColor, textColor: preset.text };
+          return { ...cat, name: catName.trim(), color: catColor, textColor: preset.text, isProductive: catIsProductive };
         }
         return cat;
       });
@@ -205,6 +210,7 @@ export default function Settings({
         name: catName.trim(),
         color: catColor,
         textColor: preset.text,
+        isProductive: catIsProductive,
         activities: [],
       };
       updatedCategories = [...categories, newCat];
@@ -431,6 +437,36 @@ export default function Settings({
       {/* ── PANEL 1: GENERAL SETTINGS ─────────────────────────────── */}
       {activeSubTab === 'general' && (
         <form onSubmit={handleSaveGeneralSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Profile Settings */}
+          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid #38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#38bdf8', fontWeight: '800', fontSize: '0.95rem', fontFamily: 'Outfit' }}>
+                  {(formUserName || 'K')[0].toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Profil Ayarları</h3>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                  Uygulamadaki isminiz ve avatarınız
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                Kullanıcı Adı
+              </label>
+              <input
+                type="text"
+                value={formUserName}
+                onChange={e => setFormUserName(e.target.value)}
+                placeholder="İsminiz..."
+                maxLength={25}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
 
           {/* Interval Cards */}
           <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -825,6 +861,22 @@ export default function Settings({
                   autoFocus
                   style={{ width: '100%' }}
                 />
+              </div>
+
+              {/* Productivity Toggle */}
+              <div className="settings-row" style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+                <div className="settings-row-label">
+                  <strong style={{ fontSize: '0.85rem' }}>Verimli Kategori</strong>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Bu kategorideki süreler verimlilik skoruna dahil edilir</span>
+                </div>
+                <label className="toggle-switch" aria-label="Verimli kategori">
+                  <input
+                    type="checkbox"
+                    checked={catIsProductive}
+                    onChange={e => setCatIsProductive(e.target.checked)}
+                  />
+                  <span className="toggle-track" />
+                </label>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

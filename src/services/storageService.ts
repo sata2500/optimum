@@ -1,3 +1,5 @@
+import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
+
 export interface Activity {
   id: string;
   code: string;
@@ -10,6 +12,7 @@ export interface Category {
   color: string; // Hex color code
   textColor: string; // Hex or CSS color for text readability
   activities: Activity[];
+  isProductive?: boolean; // Represents productive/useful time
 }
 
 export interface TimeLog {
@@ -34,6 +37,7 @@ export interface AppSettings {
   startHour: string; // HH:MM, e.g. "07:30"
   endHour: string; // HH:MM, e.g. "00:30"
   notificationsEnabled: boolean;
+  userName?: string; // Profile name
 }
 
 const STORAGE_KEYS = {
@@ -48,6 +52,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     name: 'Eğitimlerim',
     color: '#22c55e', // Green
     textColor: '#ffffff',
+    isProductive: true,
     activities: [
       { id: 'e1', code: 'E1', name: 'O.T.D' },
       { id: 'e2', code: 'E2', name: 'Circle' },
@@ -63,6 +68,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     name: 'Market / İş',
     color: '#3b82f6', // Blue
     textColor: '#ffffff',
+    isProductive: true,
     activities: [
       { id: 'm9', code: 'M9', name: 'Müşteriler' },
       { id: 'm10', code: 'M10', name: 'Temizlik, Düzen' },
@@ -77,6 +83,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     name: 'İbadetlerim',
     color: '#8b5cf6', // Violet/Purple
     textColor: '#ffffff',
+    isProductive: true,
     activities: [
       { id: 'i15', code: 'İ15', name: 'Abdest' },
       { id: 'i16', code: 'İ16', name: 'Namaz' },
@@ -91,6 +98,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     name: 'Zaman Kaybı / Boş',
     color: '#ef4444', // Red
     textColor: '#ffffff',
+    isProductive: false,
     activities: [
       { id: 'z21', code: 'Z21', name: 'Boş Vakit Geçirmek' },
       { id: 'z22', code: 'Z22', name: 'Haberler / Sosyal Medya' },
@@ -102,6 +110,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     name: 'Telefon',
     color: '#eab308', // Yellow
     textColor: '#000000',
+    isProductive: false,
     activities: [
       { id: 't27', code: 'T27', name: 'Kişisel ve Sosyal Medya' },
       { id: 't28', code: 'T28', name: 'Sosyal Medya Dışı' },
@@ -113,6 +122,7 @@ const DEFAULT_CATEGORIES: Category[] = [
     name: 'Sosyal & Aktiviteler',
     color: '#06b6d4', // Cyan
     textColor: '#ffffff',
+    isProductive: true,
     activities: [
       { id: 's31', code: 'S31', name: 'Kitaplık' },
       { id: 's32', code: 'S32', name: 'Arkadaşlar' },
@@ -126,6 +136,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   startHour: '07:30',
   endHour: '00:30',
   notificationsEnabled: true,
+  userName: 'Kullanıcı',
 };
 
 export const storageService = {
@@ -285,28 +296,7 @@ export const storageService = {
 
   // Generate 9 days of mock data
   generateMockData(): void {
-    const parseTimeToMinutes = (timeStr: string): number => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return h * 60 + m;
-    };
 
-    const generateSlots = (start: string, end: string, interval: number): string[] => {
-      const slots: string[] = [];
-      const startMin = parseTimeToMinutes(start);
-      let endMin = parseTimeToMinutes(end);
-      
-      if (endMin < startMin) {
-        endMin += 1440; // Spans midnight
-      }
-      
-      for (let min = startMin; min <= endMin; min += interval) {
-        const totalMin = min % 1440;
-        const h = Math.floor(totalMin / 60);
-        const m = totalMin % 60;
-        slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-      }
-      return slots;
-    };
 
     const categories = this.getCategories();
     const logs: TimeLog[] = [];

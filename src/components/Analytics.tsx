@@ -38,7 +38,10 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
     rangeLogs.forEach(l => {
       const mins = l.durationMinutes || intervalMinutes;
       totalMinutes += mins;
-      if (['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId)) {
+      const cat = categories.find(c => c.id === l.categoryId);
+      // Use the dynamic category.isProductive flag. Default to old hardcoded rule if category is not found.
+      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
+      if (isProductive) {
         productiveMinutes += mins;
       }
     });
