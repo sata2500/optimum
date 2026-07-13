@@ -1,0 +1,1503 @@
+import { useState, useEffect, useRef } from 'react';
+import { 
+  AlertCircle, ChevronRight, X, ChevronLeft, Calendar, Plus, Trash2, ZoomIn, ZoomOut, Maximize, Minimize 
+} from 'lucide-react';
+import type { Category, TimeLog, AppSettings } from '../services/storageService';
+import { notificationService } from '../services/notificationService';
+
+interface DashboardProps {
+  categories: Category[];
+  logs: TimeLog[];
+  settings: AppSettings;
+  onLogAdd: (logData: Omit<TimeLog, 'id' | 'timestamp' | 'synced' | 'updatedAt'>) => Promise<TimeLog>;
+  onLogDelete: (id: string) => Promise<void>;
+  pendingLog: { slot: string; date: string } | null;
+  clearPendingLog: () => void;
+}
+
+// Helpers for time calculation
+function parseTimeToMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function generateSlots(start: string, end: string, interval: number): string[] {
+  const slots: string[] = [];
+  const startMin = parseTimeToMinutes(start);
+  let endMin = parseTimeToMinutes(end);
+  
+  if (endMin < startMin) {
+    endMin += 1440; // Spans midnight
+  }
+  
+  for (let min = startMin; min <= endMin; min += interval) {
+    const totalMin = min % 1440;
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  }
+  return slots;
+}
+
+const DAYS_SHORT_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
+export default function Dashboard({
+  categories,
+  logs,
+  settings,
+  onLogAdd,
+  onLogDelete,
+  pendingLog,
+  clearPendingLog,
+}: DashboardProps) {
+
+  // Excel Grid Configuration & Filters
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('weekly');
+  const [currentAnchorDate, setCurrentAnchorDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  
+
+  // Multi-select Hierarchical Filters
+  const [selectedGridCatIds, setSelectedGridCatIds] = useState<Set<string>>(new Set());
+  const [selectedGridActIds, setSelectedGridActIds] = useState<Set<string>>(new Set());
+
+  // Custom Range Slider Days Count
+  const [customDaysCount, setCustomDaysCount] = useState<number>(30);
+
+  // Cell logging modal state
+  const [showLogModal, setShowLogModal] = useState<boolean>(false);
+  const [activeCell, setActiveCell] = useState<{ slot: string; date: string } | null>(null);
+  const [selectedLog, setSelectedLog] = useState<TimeLog | null>(null);
+  const [notes, setNotes] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [selectedDuration, setSelectedDuration] = useState<number>(settings.intervalMinutes);
+
+  // Missed slots list
+  const [missedSlots, setMissedSlots] = useState<{ slot: string; date: string }[]>([]);
+  const [currentMissedIndex, setCurrentMissedIndex] = useState<number>(-1);
+
+  const [notifPermission, setNotifPermission] = useState<string>('default');
+
+  useEffect(() => {
+    const checkPerm = async () => {
+      const status = await notificationService.getPermissionStatus();
+      setNotifPermission(status);
+    };
+    checkPerm();
+    window.addEventListener('focus', checkPerm);
+    return () => window.removeEventListener('focus', checkPerm);
+  }, []);
+  const [zoomScale, setZoomScale] = useState<number>(1.0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const fullscreenWrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
+      if (!isCurrentlyFullscreen) {
+        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+          try {
+            screen.orientation.unlock();
+          } catch(e) {}
+        }
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const currentZoomScaleRef = useRef<number>(zoomScale);
+
+  useEffect(() => {
+    currentZoomScaleRef.current = zoomScale;
+  }, [zoomScale]);
+
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    let touchStartDist = 0;
+    let initialScale = 1.0;
+    let isPinching = false;
+
+    const getDistance = (touches: TouchList) => {
+      if (touches.length < 2) return 0;
+      return Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        touchStartDist = getDistance(e.touches);
+        initialScale = currentZoomScaleRef.current;
+        isPinching = true;
+        
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isPinching && e.touches.length === 2) {
+        const currentDist = getDistance(e.touches);
+        if (touchStartDist > 0 && currentDist > 0) {
+          const factor = currentDist / touchStartDist;
+          const newScale = Math.min(1.4, Math.max(0.6, initialScale * factor));
+          setZoomScale(Math.round(newScale * 100) / 100);
+        }
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      isPinching = false;
+      touchStartDist = 0;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+    container.addEventListener('touchcancel', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, []);
+  // Hook notification payload
+  useEffect(() => {
+    if (pendingLog) {
+      setActiveCell({ slot: pendingLog.slot, date: pendingLog.date });
+      setSelectedLog(logs.find(l => l.date === pendingLog.date && l.timeSlot === pendingLog.slot) || null);
+      setNotes('');
+      setCurrentMissedIndex(-1);
+      setShowLogModal(true);
+    }
+  }, [pendingLog, logs]);
+
+
+
+
+  // Check for missed slots in the last 12 hours
+  useEffect(() => {
+    const checkMissed = () => {
+      const startMin = parseTimeToMinutes(settings.startHour);
+      const endMin = parseTimeToMinutes(settings.endHour);
+      const missed: { slot: string; date: string }[] = [];
+      const now = new Date();
+      const lookBackMin = 12 * 60; // 12 hours limit
+
+      for (let i = settings.intervalMinutes; i <= lookBackMin; i += settings.intervalMinutes) {
+        const past = new Date(now.getTime() - i * 60 * 1000);
+        const h = past.getHours();
+        const m = past.getMinutes();
+        const timeMin = h * 60 + m;
+
+        if (m % settings.intervalMinutes !== 0) continue;
+
+        if (isTimeInActiveRange(timeMin, startMin, endMin)) {
+          const slotStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          const dateStr = past.toISOString().split('T')[0];
+
+          const hasLog = logs.some(l => {
+            if (l.date !== dateStr) return false;
+            const startMin = parseTimeToMinutes(l.timeSlot);
+            const duration = l.durationMinutes || settings.intervalMinutes;
+            const endMin = startMin + duration;
+            return timeMin >= startMin && timeMin < endMin;
+          });
+          if (!hasLog) {
+            missed.push({ slot: slotStr, date: dateStr });
+          }
+        }
+      }
+
+      // Chronological sort
+      missed.sort((a, b) => {
+        const timeA = parseTimeToMinutes(a.slot) + (a.date === now.toISOString().split('T')[0] ? 1440 : 0);
+        const timeB = parseTimeToMinutes(b.slot) + (b.date === now.toISOString().split('T')[0] ? 1440 : 0);
+        return timeA - timeB;
+      });
+
+      setMissedSlots(missed);
+    };
+
+    checkMissed();
+    const interval = setInterval(checkMissed, 60000);
+    return () => clearInterval(interval);
+  }, [logs, settings]);
+
+  const isTimeInActiveRange = (timeMinutes: number, startMin: number, endMin: number): boolean => {
+    if (endMin >= startMin) {
+      return timeMinutes >= startMin && timeMinutes <= endMin;
+    } else {
+      return timeMinutes >= startMin || timeMinutes <= endMin;
+    }
+  };
+
+  // Date range calculations
+  const getDatesToRender = (): Date[] => {
+    const dates: Date[] = [];
+    if (viewMode === 'daily') {
+      const d = new Date(currentAnchorDate);
+      d.setHours(0, 0, 0, 0);
+      dates.push(d);
+    } else if (viewMode === 'weekly') {
+      // Find Monday of anchor week
+      const anchor = new Date(currentAnchorDate);
+      const day = anchor.getDay();
+      const diff = anchor.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(anchor.setDate(diff));
+      monday.setHours(0, 0, 0, 0);
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        dates.push(d);
+      }
+    } else if (viewMode === 'monthly') {
+      // Find 1st of anchor month
+      const start = new Date(currentAnchorDate.getFullYear(), currentAnchorDate.getMonth(), 1);
+      const end = new Date(currentAnchorDate.getFullYear(), currentAnchorDate.getMonth() + 1, 0);
+      
+      let curr = new Date(start);
+      while (curr <= end) {
+        dates.push(new Date(curr));
+        curr.setDate(curr.getDate() + 1);
+      }
+    } else {
+      // Custom date range based on customDaysCount slider backwards from anchor date
+      const anchor = new Date(currentAnchorDate);
+      anchor.setHours(0, 0, 0, 0);
+      
+      for (let i = 0; i < customDaysCount; i++) {
+        const d = new Date(anchor);
+        d.setDate(anchor.getDate() - i);
+        dates.push(d);
+      }
+    }
+    // Reverse sorting: Oldest first (Today on left)
+    return dates.sort((a, b) => a.getTime() - b.getTime());
+  };
+
+  const getGridIntervalMinutes = (): number => {
+    if (settings.intervalMinutes < 15) {
+      return 15;
+    }
+    return settings.intervalMinutes;
+  };
+
+  const datesToRender = getDatesToRender();
+  const timeSlots = generateSlots(settings.startHour, settings.endHour, getGridIntervalMinutes());
+
+  // Navigate anchor date
+  const handleNavigateAnchor = (direction: 'prev' | 'next') => {
+    const newAnchor = new Date(currentAnchorDate);
+    if (viewMode === 'daily') {
+      newAnchor.setDate(currentAnchorDate.getDate() + (direction === 'next' ? 1 : -1));
+    } else if (viewMode === 'weekly') {
+      newAnchor.setDate(currentAnchorDate.getDate() + (direction === 'next' ? 7 : -7));
+    } else if (viewMode === 'monthly') {
+      newAnchor.setMonth(currentAnchorDate.getMonth() + (direction === 'next' ? 1 : -1));
+    }
+    setCurrentAnchorDate(newAnchor);
+  };
+
+  const handleJumpToToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setCurrentAnchorDate(today);
+  };
+
+  const formatDateStr = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatPeriodLabel = (): string => {
+    if (viewMode === 'daily') {
+      return currentAnchorDate.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    } else if (viewMode === 'weekly') {
+      const start = datesToRender[0]; // Oldest (Monday)
+      const end = datesToRender[datesToRender.length - 1]; // Newest (Sunday)
+      return `${start.getDate()} ${start.toLocaleString('tr-TR', { month: 'short' })} - ${end.getDate()} ${end.toLocaleString('tr-TR', { month: 'short' })} ${end.getFullYear()}`;
+    } else if (viewMode === 'monthly') {
+      return currentAnchorDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+    } else {
+      if (datesToRender.length === 0) return 'Tarih seçilmedi';
+      const oldest = datesToRender[0];
+      const newest = datesToRender[datesToRender.length - 1];
+      return `${oldest.getDate()} ${oldest.toLocaleString('tr-TR', { month: 'short' })} - ${newest.getDate()} ${newest.toLocaleString('tr-TR', { month: 'short' })} ${newest.getFullYear()} (${customDaysCount} Gün)`;
+    }
+  };
+
+  // Cell Interaction
+  const getLogForSlot = (dateStr: string, slotStr: string): TimeLog | undefined => {
+    const slotMin = parseTimeToMinutes(slotStr);
+    return logs.find(l => {
+      if (l.date !== dateStr) return false;
+      const startMin = parseTimeToMinutes(l.timeSlot);
+      const duration = l.durationMinutes || getGridIntervalMinutes();
+      const endMin = startMin + duration;
+      return slotMin >= startMin && slotMin < endMin;
+    });
+  };
+
+  const handleCellClick = (slot: string, date: string, existingLog: TimeLog | null) => {
+    setActiveCell({ slot, date });
+    if (existingLog) {
+      setSelectedLog(existingLog);
+      setNotes(existingLog.notes || '');
+      setSelectedDuration(existingLog.durationMinutes || getGridIntervalMinutes());
+    } else {
+      setSelectedLog(null);
+      setNotes('');
+      setSelectedDuration(getGridIntervalMinutes());
+    }
+    setShowLogModal(true);
+  };
+
+  const handleSelectActivity = async (activity: { id: string; code: string; name: string }, category: Category) => {
+    if (!activeCell) return;
+
+    await onLogAdd({
+      date: activeCell.date,
+      timeSlot: activeCell.slot,
+      activityId: activity.id,
+      activityCode: activity.code,
+      activityName: activity.name,
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryColor: category.color,
+      notes: notes.trim() || undefined,
+      durationMinutes: selectedDuration,
+    });
+
+    if (currentMissedIndex > -1 && currentMissedIndex < missedSlots.length - 1) {
+      const nextIdx = currentMissedIndex + 1;
+      setCurrentMissedIndex(nextIdx);
+      setActiveCell({ slot: missedSlots[nextIdx].slot, date: missedSlots[nextIdx].date });
+      setSelectedLog(getLogForSlot(missedSlots[nextIdx].date, missedSlots[nextIdx].slot) || null);
+      setNotes('');
+    } else {
+      setShowLogModal(false);
+      setActiveCell(null);
+      setSelectedLog(null);
+      setCurrentMissedIndex(-1);
+      clearPendingLog();
+    }
+  };
+
+  const handleDeleteLogClick = async () => {
+    if (selectedLog) {
+      await onLogDelete(selectedLog.id);
+      setShowLogModal(false);
+      setActiveCell(null);
+      setSelectedLog(null);
+    }
+  };
+
+  const handleLogMissedSequence = () => {
+    if (missedSlots.length > 0) {
+      setCurrentMissedIndex(0);
+      setActiveCell({ slot: missedSlots[0].slot, date: missedSlots[0].date });
+      setSelectedLog(logs.find(l => l.date === missedSlots[0].date && l.timeSlot === missedSlots[0].slot) || null);
+      setNotes('');
+      setShowLogModal(true);
+    }
+  };
+
+  const handleToggleFullscreen = async () => {
+    const wrapper = fullscreenWrapperRef.current;
+    if (!wrapper) return;
+
+    if (!document.fullscreenElement) {
+      try {
+        if (wrapper.requestFullscreen) {
+          await wrapper.requestFullscreen();
+        }
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+          await screen.orientation.lock('landscape').catch((e) => {
+            console.warn('Screen orientation lock failed:', e);
+          });
+        }
+      } catch (err) {
+        console.error('Fullscreen request failed:', err);
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+      setIsFullscreen(false);
+    }
+  };
+
+  const requestAndVerifyPermission = async (): Promise<boolean> => {
+    if (!('Notification' in window)) {
+      alert('Tarayıcınız bildirim özelliğini desteklemiyor veya güvenli olmayan (HTTP) bir bağlantı üzerinden bağlanıyorsunuz. Bildirimleri kullanabilmek için lütfen "http://localhost:5173" veya bir "HTTPS" bağlantısı kullanın.');
+      return false;
+    }
+
+    if (Notification.permission === 'denied') {
+      alert('Bildirim izni daha önce engellenmiş. Bildirimleri almak için lütfen tarayıcınızın adres çubuğundaki kilit simgesine (kilit/kamera/ayar ikonu) tıklayarak Bildirim İznini "İzin Ver" (Allow) olarak değiştirin ve sayfayı yenileyin.');
+      return false;
+    }
+
+    const granted = await notificationService.requestPermission();
+    const status = await notificationService.getPermissionStatus();
+    setNotifPermission(status);
+
+    if (!granted) {
+      alert('Bildirim izni reddedildi. Hatırlatıcıları almak için izne onay vermeniz gerekmektedir.');
+    }
+
+    return granted;
+  };
+
+
+
+  // Filter activities
+  const filteredActivities: { category: Category; activity: any }[] = [];
+  categories.forEach(cat => {
+    if (selectedCategoryId === 'all' || selectedCategoryId === cat.id) {
+      cat.activities.forEach(act => {
+        const matchesSearch = 
+          act.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          act.code.toLowerCase().includes(searchQuery.toLowerCase());
+        if (matchesSearch) {
+          filteredActivities.push({ category: cat, activity: act });
+        }
+      });
+    }
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      
+      {/* 0. Notification Permission Warning Banner */}
+      {settings.notificationsEnabled && notifPermission !== 'granted' && (
+        <div 
+          className="glass-panel animate-scale-in" 
+          style={{ 
+            padding: '12px 20px', 
+            background: 'rgba(239, 68, 68, 0.08)', 
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            borderRadius: '16px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertCircle size={18} color="#ef4444" />
+            <span style={{ fontSize: '0.85rem', color: '#fca5a5', fontWeight: '500' }}>
+              Hatırlatıcılar açık fakat tarayıcınızın bildirim izni eksik! Bildirimleri alamayacaksınız.
+            </span>
+          </div>
+          <button 
+            type="button"
+            className="btn" 
+            onClick={async () => {
+              const granted = await requestAndVerifyPermission();
+              if (granted) {
+                try {
+                  new Notification('Optimum Flow', { body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.' });
+                  notificationService.rescheduleNotifications();
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+            }}
+            style={{ 
+              padding: '6px 12px', 
+              fontSize: '0.78rem', 
+              background: '#ef4444', 
+              color: '#fff', 
+              borderRadius: '8px',
+              border: 'none',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            İzni Etkinleştir
+          </button>
+        </div>
+      )}
+      
+      {/* Title Section (Mockup Style) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+        <h1 style={{ fontSize: '1.8rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif', color: '#fff' }}>
+          Zaman Paneli
+        </h1>
+        <div 
+          style={{ 
+            width: '38px', 
+            height: '38px', 
+            borderRadius: '50%', 
+            background: 'rgba(6, 182, 212, 0.1)', 
+            border: '2px solid #06b6d4', 
+            color: '#06b6d4', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            fontWeight: '800', 
+            fontSize: '0.95rem',
+            boxShadow: '0 0 10px rgba(6, 182, 212, 0.15)',
+            fontFamily: 'Outfit, sans-serif'
+          }}
+        >
+          K
+        </div>
+      </div>
+
+      {/* Segmented Period Selector (Mockup Style) */}
+      <div className="segmented-control" style={{ margin: '4px 0' }}>
+        {(['daily', 'weekly', 'monthly', 'custom'] as const).map(mode => (
+          <button
+            key={mode}
+            className={`segment-btn ${viewMode === mode ? 'segment-btn-active' : ''}`}
+            onClick={() => {
+              setViewMode(mode);
+              handleJumpToToday();
+            }}
+          >
+            {mode === 'daily' ? 'Günlük' : mode === 'weekly' ? 'Haftalık' : mode === 'monthly' ? 'Aylık' : 'Özel'}
+          </button>
+        ))}
+      </div>
+
+
+
+      {/* Missed slots notification bar */}
+      {missedSlots.length > 0 && (
+        <div 
+          className="glass-panel animate-slide-up" 
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            padding: '14px 20px', 
+            borderColor: 'rgba(239, 68, 68, 0.3)',
+            background: 'rgba(239, 68, 68, 0.08)' 
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertCircle color="#ef4444" size={20} />
+            <span style={{ fontSize: '0.85rem' }}>
+              Doldurulmamış <strong>{missedSlots.length}</strong> zaman dilimi var.
+            </span>
+          </div>
+          <button className="btn btn-primary" onClick={handleLogMissedSequence} style={{ padding: '6px 14px', fontSize: '0.75rem', borderRadius: '8px' }}>
+            Doldur
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+
+
+
+      {/* 2. Hierarchical Category Legend & Filters (Visual Pill Style - Multi-Select V4) */}
+      <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--color-primary)', fontFamily: 'Outfit' }}>
+            Zaman Çizelgesi Takip Matrisi
+          </h3>
+          <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+            Kategori Göstergeleri (Çoklu filtrelemek için tıklayın)
+          </p>
+        </div>
+
+        {/* Main Category Pills — max 2 rows, horizontal scroll */}
+        <div className="pills-scroll-wrapper">
+          <div className="pills-grid-2">
+            <button
+              className={`legend-pill ${selectedGridCatIds.size === 0 ? 'legend-pill-active' : ''}`}
+              onClick={() => {
+                setSelectedGridCatIds(new Set());
+                setSelectedGridActIds(new Set());
+              }}
+              style={{
+                '--pill-color': 'var(--color-primary)',
+                '--pill-bg-glow': 'var(--color-primary-glow)',
+                '--pill-bg-shadow': 'rgba(139, 92, 246, 0.15)',
+              } as React.CSSProperties}
+            >
+              <span className="legend-pill-circle" />
+              Tümü
+            </button>
+
+            {categories.map(cat => {
+              const isSelected = selectedGridCatIds.has(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  className={`legend-pill ${isSelected ? 'legend-pill-active' : ''}`}
+                  onClick={() => {
+                    const newCats = new Set(selectedGridCatIds);
+                    if (newCats.has(cat.id)) {
+                      newCats.delete(cat.id);
+                    } else {
+                      newCats.add(cat.id);
+                    }
+                    setSelectedGridCatIds(newCats);
+                    setSelectedGridActIds(new Set());
+                  }}
+                  style={{
+                    '--pill-color': cat.color,
+                    '--pill-bg-glow': `${cat.color}12`,
+                    '--pill-bg-shadow': `${cat.color}15`,
+                  } as React.CSSProperties}
+                >
+                  <span className="legend-pill-circle" />
+                  {cat.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sub-activity Dependent Pills */}
+        <div 
+          className="animate-slide-up" 
+          style={{ 
+            borderTop: '1px solid var(--color-border)', 
+            paddingTop: '14px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '8px' 
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+            Alt Başlıklar (Seçilen Kategorilerin İşleri):
+          </span>
+          {/* Sub-activity pills — max 3 rows, horizontal scroll */}
+          <div className="pills-scroll-wrapper">
+            <div className="pills-grid-3" style={{ alignItems: 'start' }}>
+              <button
+                onClick={() => setSelectedGridActIds(new Set())}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  border: '1px solid var(--color-border)',
+                  background: selectedGridActIds.size === 0 ? 'var(--color-primary)' : 'rgba(255,255,255,0.02)',
+                  color: '#fff',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Tümü
+              </button>
+              {categories
+                .filter(cat => selectedGridCatIds.size === 0 || selectedGridCatIds.has(cat.id))
+                .flatMap(cat =>
+                  cat.activities.map(act => {
+                    const isActSelected = selectedGridActIds.has(act.id);
+                    return (
+                      <button
+                        key={act.id}
+                        onClick={() => {
+                          const newActs = new Set(selectedGridActIds);
+                          if (newActs.has(act.id)) {
+                            newActs.delete(act.id);
+                          } else {
+                            newActs.add(act.id);
+                          }
+                          setSelectedGridActIds(newActs);
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '16px',
+                          fontSize: '0.8rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          border: `1px solid ${isActSelected ? cat.color : 'var(--color-border)'}`,
+                          background: isActSelected ? `${cat.color}15` : 'rgba(255,255,255,0.02)',
+                          color: '#fff',
+                          transition: 'all 0.15s ease',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        [{act.code}] {act.name}
+                      </button>
+                    );
+                  })
+                )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3 & 4. Fullscreen Wrapper (V11) */}
+      <div 
+        ref={fullscreenWrapperRef} 
+        style={isFullscreen ? { 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          width: '100vw', 
+          height: '100vh', 
+          background: '#040711', 
+          zIndex: 9999, 
+          padding: '24px', 
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        } : { 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '16px',
+          width: '100%'
+        }}
+      >
+        {/* 3. Range Selector & Excel Navigation Header */}
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '14px 20px', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px' 
+          }}
+        >
+
+        {/* Date Label with navigators */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {viewMode !== 'custom' && (
+            <>
+              <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
+                <ChevronLeft size={14} />
+              </button>
+              <button className="btn btn-secondary" onClick={handleJumpToToday} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
+                Bugün
+              </button>
+            </>
+          )}
+
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: '700', fontFamily: 'Outfit' }}>
+            <Calendar size={16} color="var(--color-primary)" />
+            {formatPeriodLabel()}
+          </div>
+
+          {viewMode !== 'custom' && (
+            <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('next')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
+              <ChevronRight size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Custom date range slider (V4) */}
+        {viewMode === 'custom' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '220px', flex: 1, padding: '4px 8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                Gösterilecek Gün Sayısı:
+              </span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: '800', fontFamily: 'Outfit' }}>
+                {customDaysCount} Gün
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>1 G</span>
+              <input 
+                type="range" 
+                min={1} 
+                max={365} 
+                value={customDaysCount} 
+                onChange={(e) => setCustomDaysCount(Number(e.target.value))}
+                style={{ 
+                  flex: 1, 
+                  height: '6px', 
+                  borderRadius: '3px',
+                  background: 'rgba(255,255,255,0.1)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  accentColor: 'var(--color-primary)'
+                }}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>365 G</span>
+            </div>
+          </div>
+        )}
+
+        {/* Zoom & Fullscreen Controls (V9 & V11) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button 
+              type="button"
+              className="btn btn-secondary" 
+              onClick={() => setZoomScale(prev => Math.max(0.6, prev - 0.1))} 
+              style={{ padding: '6px 10px', borderRadius: '8px' }}
+              title="Uzaklaştır (%10 azalt)"
+            >
+              <ZoomOut size={14} />
+            </button>
+            
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setZoomScale(1.0)}
+              style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px', fontWeight: '700', minWidth: '55px', textAlign: 'center' }}
+              title="Varsayılana Sıfırla (%100)"
+            >
+              %{Math.round(zoomScale * 100)}
+            </button>
+
+            <button 
+              type="button"
+              className="btn btn-secondary" 
+              onClick={() => setZoomScale(prev => Math.min(1.4, prev + 0.1))} 
+              style={{ padding: '6px 10px', borderRadius: '8px' }}
+              title="Yakınlaştır (%10 artır)"
+            >
+              <ZoomIn size={14} />
+            </button>
+          </div>
+
+          <button 
+            type="button"
+            className="btn btn-secondary" 
+            onClick={handleToggleFullscreen} 
+            style={{ padding: '6px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px', border: isFullscreen ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)' }}
+            title={isFullscreen ? "Tam Ekrandan Çık" : "Tam Ekran Yap"}
+          >
+            {isFullscreen ? <Minimize size={14} color="var(--color-primary)" /> : <Maximize size={14} />}
+            <span style={{ fontSize: '0.78rem', fontWeight: '700', fontFamily: 'Outfit', color: isFullscreen ? 'var(--color-primary)' : '#fff' }}>
+              {isFullscreen ? "Küçült" : "Tam Ekran"}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* 4. The Main Excel Grid Table / Daily Detail List Table */}
+      <div 
+        ref={tableContainerRef}
+        className="glass-panel" 
+        style={isFullscreen ? { 
+          padding: '12px', 
+          overflowX: 'auto', 
+          width: '100%',
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto'
+        } : { 
+          padding: '12px', 
+          overflowX: 'auto', 
+          width: '100%',
+          maxHeight: '70vh',
+          overflowY: 'auto'
+        }}
+      >
+        {viewMode === 'daily' ? (
+          <table 
+            className="excel-table"
+            style={{ 
+              width: '100%', 
+              minWidth: `${Math.round(600 * zoomScale)}px`, 
+              tableLayout: 'fixed' 
+            }}
+          >
+            <thead>
+              <tr style={{ background: '#090d16' }}>
+                <th style={{ width: `${Math.round(150 * zoomScale)}px`, padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
+                  Saat & Tarih
+                </th>
+                <th style={{ width: `${Math.round(180 * zoomScale)}px`, padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
+                  Kategori
+                </th>
+                <th style={{ padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
+                  Alt Kategori
+                </th>
+                <th style={{ width: `${Math.round(120 * zoomScale)}px`, padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'center' }}>
+                  Ayrılan Süre
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {timeSlots.map((slot) => {
+                const dateStr = formatDateStr(currentAnchorDate);
+                const log = getLogForSlot(dateStr, slot);
+                const isFuture = currentAnchorDate.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
+                const dayOfWeekStr = DAYS_SHORT_TR[currentAnchorDate.getDay() === 0 ? 6 : currentAnchorDate.getDay() - 1];
+                const displayDate = `${currentAnchorDate.getDate()}/${currentAnchorDate.getMonth() + 1}`;
+
+                // Filter visibility check
+                const isFilteredOut = log && (
+                  (selectedGridCatIds.size > 0 && !selectedGridCatIds.has(log.categoryId)) ||
+                  (selectedGridActIds.size > 0 && !selectedGridActIds.has(log.activityId))
+                );
+
+                return (
+                  <tr 
+                    key={slot}
+                    className="grid-cell"
+                    onClick={() => !isFuture && handleCellClick(slot, dateStr, log || null)}
+                    style={{ 
+                      cursor: isFuture ? 'not-allowed' : 'pointer',
+                      opacity: isFuture ? 0.35 : 1,
+                      background: 'rgba(255,255,255,0.01)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {/* 1. Saat & Tarih */}
+                    <td 
+                      className="excel-cell-capsule"
+                      style={{ 
+                        padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, 
+                        fontSize: `${0.85 * zoomScale}rem`, 
+                        fontWeight: '700', 
+                        color: 'var(--color-text-primary)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: `${Math.round(8 * zoomScale)}px` }}>
+                        <span style={{ color: 'var(--color-primary)' }}>{slot}</span>
+                        <span style={{ fontSize: `${0.75 * zoomScale}rem`, color: 'var(--color-text-muted)', fontWeight: '400' }}>
+                          - {displayDate} {dayOfWeekStr}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* 2. Kategori */}
+                    <td className="excel-cell-capsule" style={{ padding: `${Math.round(8 * zoomScale)}px ${Math.round(12 * zoomScale)}px` }}>
+                      {log ? (
+                        <span 
+                          style={{
+                            background: isFilteredOut ? '#1f2937' : log.categoryColor,
+                            color: isFilteredOut ? '#4b5563' : '#fff',
+                            padding: `${Math.round(6 * zoomScale)}px ${Math.round(12 * zoomScale)}px`,
+                            borderRadius: `${Math.round(12 * zoomScale)}px`,
+                            fontSize: `${0.8 * zoomScale}rem`,
+                            fontWeight: '800',
+                            display: 'inline-block',
+                            boxShadow: isFilteredOut ? 'none' : `0 2px 6px ${log.categoryColor}25`,
+                            opacity: isFilteredOut ? 0.15 : 1,
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {log.categoryName}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: `${0.8 * zoomScale}rem`, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                          Kayıt Yok
+                        </span>
+                      )}
+                    </td>
+
+                    {/* 3. Alt Kategori */}
+                    <td className="excel-cell-capsule" style={{ padding: `${Math.round(8 * zoomScale)}px ${Math.round(16 * zoomScale)}px` }}>
+                      {log ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.round(2 * zoomScale)}px`, opacity: isFilteredOut ? 0.15 : 1, transition: 'all 0.15s ease' }}>
+                          <span style={{ fontSize: `${0.85 * zoomScale}rem`, fontWeight: '700', color: '#fff' }}>
+                            [{log.activityCode}] {log.activityName}
+                          </span>
+                          {log.notes && (
+                            <span style={{ fontSize: `${0.72 * zoomScale}rem`, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
+                              Not: {log.notes}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: `${0.8 * zoomScale}rem`, color: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: `${Math.round(6 * zoomScale)}px` }}>
+                          {!isFuture && (
+                            <>
+                              <Plus size={Math.round(12 * zoomScale)} />
+                              <span>Yeni kayıt eklemek için dokunun...</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </td>
+
+                    <td 
+                      className="excel-cell-capsule"
+                      style={{ 
+                        padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, 
+                        fontSize: `${0.85 * zoomScale}rem`, 
+                        fontWeight: '700', 
+                        color: 'var(--color-text-secondary)',
+                        textAlign: 'center'
+                      }}
+                    >
+                      {log ? (log.durationMinutes || getGridIntervalMinutes()) : getGridIntervalMinutes()} dk
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <table 
+            className="excel-table"
+            style={{ 
+              width: '100%', 
+              minWidth: `${(75 + datesToRender.length * 95) * zoomScale}px`,
+              tableLayout: 'fixed',
+              borderCollapse: 'separate',
+              borderSpacing: `${4 * zoomScale}px ${6 * zoomScale}px`
+            }}
+          >
+          <thead>
+            <tr>
+              {/* Top-left empty corner */}
+              <th 
+                style={{ 
+                  width: `${75 * zoomScale}px`, 
+                  minWidth: `${75 * zoomScale}px`,
+                  padding: `${Math.round(10 * zoomScale)}px`, 
+                  fontSize: `${0.8 * zoomScale}rem`, 
+                  color: 'var(--color-text-secondary)',
+                  position: 'sticky',
+                  top: 0,
+                  left: 0,
+                  background: '#090d16',
+                  zIndex: 10,
+                  boxShadow: '2px 0 5px rgba(0, 0, 0, 0.4)'
+                }}
+              >
+                Saat
+              </th>
+              {datesToRender.map((day, idx) => {
+                const isToday = formatDateStr(day) === formatDateStr(new Date());
+                const dayOfWeekStr = DAYS_SHORT_TR[day.getDay() === 0 ? 6 : day.getDay() - 1];
+                return (
+                  <th 
+                    key={idx}
+                    style={{ 
+                      width: `${95 * zoomScale}px`,
+                      minWidth: `${95 * zoomScale}px`,
+                      padding: `${Math.round(10 * zoomScale)}px ${Math.round(6 * zoomScale)}px`,
+                      fontSize: `${0.85 * zoomScale}rem`,
+                      fontWeight: '700',
+                      position: 'sticky',
+                      top: 0,
+                      background: '#090d16',
+                      zIndex: 5,
+                      color: isToday ? 'var(--color-primary)' : 'var(--color-text-primary)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: `${0.7 * zoomScale}rem`, fontWeight: '400', opacity: 0.8 }}>{dayOfWeekStr}</span>
+                      <span 
+                        style={{ 
+                          fontSize: `${0.9 * zoomScale}rem`, 
+                          marginTop: `${Math.round(2 * zoomScale)}px`,
+                          background: isToday ? 'var(--color-primary-glow)' : 'transparent',
+                          padding: isToday ? `${Math.round(1 * zoomScale)}px ${Math.round(6 * zoomScale)}px` : '0',
+                          borderRadius: `${Math.round(6 * zoomScale)}px`
+                        }}
+                      >
+                        {day.getDate()} {day.toLocaleString('tr-TR', { month: 'short' })}
+                      </span>
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {timeSlots.map((slot) => (
+              <tr key={slot}>
+                {/* Time slot row header */}
+                <td 
+                  style={{ 
+                    width: `${75 * zoomScale}px`,
+                    minWidth: `${75 * zoomScale}px`,
+                    padding: `${Math.round(8 * zoomScale)}px ${Math.round(4 * zoomScale)}px`, 
+                    fontSize: `${0.8 * zoomScale}rem`, 
+                    fontWeight: '600', 
+                    textAlign: 'center',
+                    color: 'var(--color-text-secondary)',
+                    position: 'sticky',
+                    left: 0,
+                    background: '#090d16',
+                    zIndex: 2,
+                    boxShadow: '2px 0 5px rgba(0, 0, 0, 0.4)'
+                  }}
+                >
+                  {slot}
+                </td>
+                
+                {/* 7 or more Days columns cells */}
+                {datesToRender.map((day, dayIdx) => {
+                  const dateStr = formatDateStr(day);
+                  const log = getLogForSlot(dateStr, slot);
+                  const isFuture = day.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
+                  
+                  // Filter visibility check
+                  const isFilteredOut = log && (
+                    (selectedGridCatIds.size > 0 && !selectedGridCatIds.has(log.categoryId)) ||
+                    (selectedGridActIds.size > 0 && !selectedGridActIds.has(log.activityId))
+                  );
+
+                  return (
+                    <td 
+                      key={dayIdx}
+                      className={`excel-cell-capsule ${isFuture ? '' : 'grid-cell'}`}
+                      onClick={() => !isFuture && handleCellClick(slot, dateStr, log || null)}
+                      style={{ 
+                        width: `${95 * zoomScale}px`,
+                        minWidth: `${95 * zoomScale}px`,
+                        padding: '1px',
+                        height: `${42 * zoomScale}px`,
+                        position: 'relative',
+                        cursor: isFuture ? 'not-allowed' : 'pointer',
+                        opacity: isFuture ? 0.35 : 1,
+                        background: 'transparent',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {log ? (
+                        <div 
+                          style={{
+                            background: isFilteredOut ? '#1f2937' : log.categoryColor,
+                            color: isFilteredOut ? '#4b5563' : '#fff',
+                            width: '100%',
+                            height: '100%',
+                            borderRadius: `${Math.round(10 * zoomScale)}px`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: isFilteredOut ? 'none' : `0 2px 8px ${log.categoryColor}30`,
+                            transition: 'all 0.15s ease',
+                            opacity: isFilteredOut ? 0.12 : 1
+                          }}
+                          title={`${log.activityCode}: ${log.activityName}${log.notes ? `\nNot: ${log.notes}` : ''}`}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', padding: `${Math.round(2 * zoomScale)}px`, textAlign: 'center', lineHeight: '1.2', overflow: 'hidden' }}>
+                            <span style={{ fontWeight: '800', fontSize: `${0.75 * zoomScale}rem`, fontFamily: 'Outfit' }}>{log.activityCode}</span>
+                            <span style={{ 
+                              fontSize: `${0.58 * zoomScale}rem`, 
+                              fontWeight: '500',
+                              opacity: isFilteredOut ? 0.4 : 0.9, 
+                              whiteSpace: 'nowrap', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis', 
+                              width: '100%',
+                              marginTop: '1px'
+                            }}>
+                              {log.activityName}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div 
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            borderRadius: `${Math.round(10 * zoomScale)}px`,
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.04)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'rgba(255, 255, 255, 0.1)',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isFuture) {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                              e.currentTarget.style.borderColor = 'var(--color-primary-glow)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isFuture) {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
+                            }
+                          }}
+                        >
+                          {!isFuture && <Plus size={Math.round(10 * zoomScale)} style={{ opacity: 0 }} className="cell-plus" />}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        )}
+      </div>
+      </div>
+
+      <style>{`
+        .grid-cell:hover {
+          background: rgba(255, 255, 255, 0.02) !important;
+        }
+        .grid-cell:hover .cell-plus {
+          opacity: 1 !important;
+        }
+      `}</style>
+
+      {/* Cell Editor / Log Input Modal */}
+      {showLogModal && activeCell && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-scale-in">
+            
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: '1.25rem' }}>
+                  {currentMissedIndex > -1 ? `Kaçırılan Dilim (${currentMissedIndex + 1}/${missedSlots.length})` : (selectedLog ? 'Kayıt Düzenle' : 'Dilim Doldur')}
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                  Tarih: <strong>{activeCell.date}</strong> | Saat Dilimi: <strong>{activeCell.slot}</strong>
+                </p>
+              </div>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowLogModal(false);
+                  setCurrentMissedIndex(-1);
+                  clearPendingLog();
+                }} 
+                style={{ padding: '6px', borderRadius: '50%' }}
+              >
+                <X size={16} />
+                <span style={{ display: 'none' }}>Kapat</span>
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {selectedLog && (
+                <div 
+                  style={{ 
+                    background: `${selectedLog.categoryColor}15`, 
+                    borderLeft: `4px solid ${selectedLog.categoryColor}`,
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  Şu anki kayıt: <strong>[{selectedLog.activityCode}] {selectedLog.activityName}</strong> (Süre: {selectedLog.durationMinutes || getGridIntervalMinutes()} dk)
+                </div>
+              )}
+
+              {/* Duration Selector (V12) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                  Aktivite Süresi:
+                </span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {(() => {
+                    const gridInterval = getGridIntervalMinutes();
+                    const durationOptions = [
+                      { label: `${gridInterval} dk`, value: gridInterval },
+                      { label: `${gridInterval * 2} dk (${(gridInterval * 2) / 60} sa)`, value: gridInterval * 2 },
+                      { label: `${gridInterval * 3} dk`, value: gridInterval * 3 },
+                      { label: `${gridInterval * 4} dk (1 sa)`, value: gridInterval * 4 },
+                      { label: `${gridInterval * 6} dk (1.5 sa)`, value: gridInterval * 6 },
+                      { label: `${gridInterval * 8} dk (2 sa)`, value: gridInterval * 8 },
+                      { label: `${gridInterval * 12} dk (3 sa)`, value: gridInterval * 12 },
+                      { label: `${gridInterval * 16} dk (4 sa)`, value: gridInterval * 16 },
+                    ];
+                    return durationOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className="btn"
+                        onClick={() => setSelectedDuration(opt.value)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          background: selectedDuration === opt.value ? 'var(--color-primary)' : 'rgba(255,255,255,0.05)',
+                          border: selectedDuration === opt.value ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <input 
+                type="text" 
+                placeholder="Aktivite adı veya kod ara..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%' }}
+              />
+
+              {/* Category Quick Filter */}
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                <button 
+                  className="btn" 
+                  onClick={() => setSelectedCategoryId('all')}
+                  style={{ 
+                    padding: '6px 12px', 
+                    borderRadius: '8px', 
+                    fontSize: '0.8rem',
+                    background: selectedCategoryId === 'all' ? 'var(--color-primary)' : 'rgba(255,255,255,0.05)',
+                    color: '#fff'
+                  }}
+                >
+                  Tümü
+                </button>
+                {categories.map(cat => (
+                  <button 
+                    key={cat.id} 
+                    className="btn" 
+                    onClick={() => setSelectedCategoryId(cat.id)}
+                    style={{ 
+                      padding: '6px 12px', 
+                      borderRadius: '8px', 
+                      fontSize: '0.8rem',
+                      background: selectedCategoryId === cat.id ? cat.color : 'rgba(255,255,255,0.05)',
+                      color: selectedCategoryId === cat.id ? cat.textColor : 'var(--color-text-secondary)'
+                    }}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Activities selection list (Grid) */}
+              <div 
+                style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', 
+                  gap: '10px', 
+                  maxHeight: '220px', 
+                  overflowY: 'auto',
+                  padding: '4px' 
+                }}
+              >
+                {filteredActivities.length > 0 ? (
+                  filteredActivities.map(({ category, activity }) => (
+                    <button
+                      key={activity.id}
+                      onClick={() => handleSelectActivity(activity, category)}
+                      style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${category.color}40`,
+                        borderRadius: '12px',
+                        padding: '12px 10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = `${category.color}15`;
+                        e.currentTarget.style.borderColor = category.color;
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                        e.currentTarget.style.borderColor = `${category.color}40`;
+                        e.currentTarget.style.transform = 'none';
+                      }}
+                    >
+                      <span 
+                        style={{ 
+                          background: category.color, 
+                          color: category.textColor, 
+                          padding: '2px 8px', 
+                          borderRadius: '6px', 
+                          fontWeight: '800',
+                          fontSize: '0.75rem' 
+                        }}
+                      >
+                        {activity.code}
+                      </span>
+                      <span 
+                        style={{ 
+                          fontSize: '0.8rem', 
+                          fontWeight: '500', 
+                          textAlign: 'center',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          height: '2.4em',
+                          lineHeight: '1.2em' 
+                        }}
+                      >
+                        {activity.name}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: 'var(--color-text-secondary)' }}>
+                    Aktivite bulunamadı.
+                  </div>
+                )}
+              </div>
+
+              {/* Notes input */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+                <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                  Açıklama / Notlar
+                </label>
+                <textarea 
+                  rows={2}
+                  placeholder="Ekstra detaylar ekleyin..." 
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  style={{ resize: 'none' }}
+                />
+              </div>
+
+            </div>
+
+            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+              {selectedLog ? (
+                <button className="btn btn-danger" onClick={handleDeleteLogClick} style={{ padding: '10px 16px' }}>
+                  <Trash2 size={16} />
+                  Kayıt Sil
+                </button>
+              ) : (
+                <div />
+              )}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    setShowLogModal(false);
+                    setSelectedLog(null);
+                    setActiveCell(null);
+                    setCurrentMissedIndex(-1);
+                    clearPendingLog();
+                  }}
+                >
+                  İptal
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
