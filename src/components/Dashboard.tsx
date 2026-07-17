@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   AlertCircle, ChevronRight, X, ChevronLeft, Calendar, Plus, Trash2, ZoomIn, ZoomOut, Maximize, Minimize,
-  Flame, Zap
+  Flame, Zap, Download, Printer
 } from 'lucide-react';
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
+import { useToast } from './Toast';
 
 interface DashboardProps {
   categories: Category[];
@@ -33,8 +34,10 @@ export default function Dashboard({
   user,
 }: DashboardProps) {
 
+  const toast = useToast();
+
   // Excel Grid Configuration & Filters
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('weekly');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
   const [currentAnchorDate, setCurrentAnchorDate] = useState<Date>(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -53,6 +56,7 @@ export default function Dashboard({
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
   const [activeCell, setActiveCell] = useState<{ slot: string; date: string } | null>(null);
   const [selectedLog, setSelectedLog] = useState<TimeLog | null>(null);
+  const [tempSelectedActivity, setTempSelectedActivity] = useState<{ activity: any; category: Category } | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
@@ -191,20 +195,23 @@ export default function Dashboard({
 
         if (isTimeInActiveRange(timeMin, startMin, endMin)) {
           const dateStr = past.toISOString().split('T')[0];
+          const todayStr = now.toISOString().split('T')[0];
 
-          const hasLog = logs.some(l => {
-            if (l.date !== dateStr) return false;
-            const startMin = parseTimeToMinutes(l.timeSlot);
-            const duration = l.durationMinutes || settings.intervalMinutes;
-            const endMin = startMin + duration;
-            return timeMin >= startMin && timeMin < endMin;
-          });
-          if (!hasLog) {
-            const endIntervalMin = timeMin + settings.intervalMinutes;
-            const eh = Math.floor((endIntervalMin % 1440) / 60);
-            const em = (endIntervalMin % 1440) % 60;
-            const slotStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
-            missed.push({ slot: slotStr, date: dateStr });
+          if (dateStr === todayStr) {
+            const hasLog = logs.some(l => {
+              if (l.date !== dateStr) return false;
+              const startMin = parseTimeToMinutes(l.timeSlot);
+              const duration = l.durationMinutes || settings.intervalMinutes;
+              const endMin = startMin + duration;
+              return timeMin >= startMin && timeMin < endMin;
+            });
+            if (!hasLog) {
+              const endIntervalMin = timeMin + settings.intervalMinutes;
+              const eh = Math.floor((endIntervalMin % 1440) / 60);
+              const em = (endIntervalMin % 1440) % 60;
+              const slotStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+              missed.push({ slot: slotStr, date: dateStr });
+            }
           }
         }
       }
@@ -463,22 +470,67 @@ export default function Dashboard({
     return logsMap.get(`${targetDateStr}_${startSlotStr}`);
   }, [logsMap, settings.intervalMinutes]);
 
+  const handleExportExcel = () => {
+    const sortedLogs = [...logs].sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return a.timeSlot.localeCompare(b.timeSlot);
+    });
+
+    let csvContent = '\uFEFFDate;Time Slot;Category;Activity Code;Activity Name;Duration (Min);Notes\n';
+    sortedLogs.forEach(l => {
+      const row = [
+        l.date,
+        l.timeSlot,
+        l.categoryName,
+        l.activityCode,
+        l.activityName,
+        l.durationMinutes || settings.intervalMinutes,
+        (l.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')
+      ];
+      csvContent += row.map(val => `"${val}"`).join(';') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `optimum_zaman_paneli_raporu_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Rapor CSV olarak başarıyla indirildi!');
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   const handleCellClick = (slot: string, date: string, existingLog: TimeLog | null) => {
     setActiveCell({ slot, date });
     if (existingLog) {
       setSelectedLog(existingLog);
       setNotes(existingLog.notes || '');
       setSelectedDuration(existingLog.durationMinutes || getGridIntervalMinutes());
+      setTempSelectedActivity({
+        activity: { id: existingLog.activityId, code: existingLog.activityCode, name: existingLog.activityName },
+        category: { id: existingLog.categoryId, name: existingLog.categoryName, color: existingLog.categoryColor, textColor: '#fff', activities: [] }
+      });
     } else {
       setSelectedLog(null);
       setNotes('');
       setSelectedDuration(getGridIntervalMinutes());
+      setTempSelectedActivity(null);
     }
     setShowLogModal(true);
   };
 
   const handleSelectActivity = async (activity: { id: string; code: string; name: string }, category: Category) => {
     if (!activeCell) return;
+
+    // Delete old log if we are editing (to prevent duplicates due to duration shifts)
+    if (selectedLog) {
+      await onLogDelete(selectedLog.id);
+    }
 
     // Calculate backward start slot and date
     const endMin = parseTimeToMinutes(activeCell.slot);
@@ -512,16 +564,35 @@ export default function Dashboard({
     if (currentMissedIndex > -1 && currentMissedIndex < missedSlots.length - 1) {
       const nextIdx = currentMissedIndex + 1;
       setCurrentMissedIndex(nextIdx);
-      setActiveCell({ slot: missedSlots[nextIdx].slot, date: missedSlots[nextIdx].date });
-      setSelectedLog(getLogForCell(missedSlots[nextIdx].date, missedSlots[nextIdx].slot) || null);
-      setNotes('');
+      const nextDate = missedSlots[nextIdx].date;
+      const nextSlot = missedSlots[nextIdx].slot;
+      setActiveCell({ slot: nextSlot, date: nextDate });
+      
+      const nextLog = getLogForCell(nextDate, nextSlot) || null;
+      setSelectedLog(nextLog);
+      if (nextLog) {
+        setTempSelectedActivity({
+          activity: { id: nextLog.activityId, code: nextLog.activityCode, name: nextLog.activityName },
+          category: { id: nextLog.categoryId, name: nextLog.categoryName, color: nextLog.categoryColor, textColor: '#fff', activities: [] }
+        });
+        setNotes(nextLog.notes || '');
+      } else {
+        setTempSelectedActivity(null);
+        setNotes('');
+      }
     } else {
       setShowLogModal(false);
       setActiveCell(null);
       setSelectedLog(null);
+      setTempSelectedActivity(null);
       setCurrentMissedIndex(-1);
       clearPendingLog();
     }
+  };
+
+  const handleSaveClick = async () => {
+    if (!tempSelectedActivity) return;
+    await handleSelectActivity(tempSelectedActivity.activity, tempSelectedActivity.category);
   };
 
   const handleDeleteLogClick = async () => {
@@ -530,6 +601,7 @@ export default function Dashboard({
       setShowLogModal(false);
       setActiveCell(null);
       setSelectedLog(null);
+      setTempSelectedActivity(null);
     }
   };
 
@@ -652,7 +724,21 @@ export default function Dashboard({
               const granted = await requestAndVerifyPermission();
               if (granted) {
                 try {
-                  new Notification('Optimum Flow', { body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.' });
+                  let sent = false;
+                  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    try {
+                      const reg = await navigator.serviceWorker.ready;
+                      await reg.showNotification('Optimum Flow', {
+                        body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.',
+                      });
+                      sent = true;
+                    } catch (swErr) {
+                      console.warn('SW success notification failed:', swErr);
+                    }
+                  }
+                  if (!sent && 'Notification' in window) {
+                    new Notification('Optimum Flow', { body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.' });
+                  }
                   notificationService.rescheduleNotifications();
                 } catch (e) {
                   console.error(e);
@@ -1033,40 +1119,72 @@ export default function Dashboard({
           }}
         >
 
-        {/* Date Label with navigators */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {viewMode !== 'custom' && (
-            <>
-              <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
-                <ChevronLeft size={14} />
-              </button>
-              <button className="btn btn-secondary" onClick={handleJumpToToday} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
-                Bugün
-              </button>
-            </>
-          )}
-
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: '700', fontFamily: 'Outfit' }}>
-            <Calendar size={16} color="var(--color-primary)" />
-            {formatPeriodLabel()}
+        {/* Date navigators & actions */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {viewMode !== 'custom' && (
+              <>
+                <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
+                  <ChevronLeft size={14} />
+                </button>
+                <button className="btn btn-secondary" onClick={handleJumpToToday} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
+                  Bugün
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => handleNavigateAnchor('next')} 
+                  disabled={isNextPeriodFuture()}
+                  style={{ 
+                    padding: '6px 10px', 
+                    borderRadius: '8px',
+                    opacity: isNextPeriodFuture() ? 0.5 : 1,
+                    cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </>
+            )}
           </div>
 
-          {viewMode !== 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button 
+              type="button"
               className="btn btn-secondary" 
-              onClick={() => handleNavigateAnchor('next')} 
-              disabled={isNextPeriodFuture()}
+              onClick={handleExportExcel}
               style={{ 
-                padding: '6px 10px', 
-                borderRadius: '8px',
-                opacity: isNextPeriodFuture() ? 0.5 : 1,
-                cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
+                padding: '6px 12px', 
+                fontSize: '0.8rem', 
+                borderRadius: '8px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
               }}
+              title="Excel (CSV) Olarak İndir"
             >
-              <ChevronRight size={14} />
+              <Download size={14} />
+              <span style={{ fontFamily: 'Outfit, sans-serif' }}>Excel</span>
             </button>
-          )}
+            <button 
+              type="button"
+              className="btn btn-secondary" 
+              onClick={handlePrint}
+              style={{ 
+                padding: '6px 12px', 
+                fontSize: '0.8rem', 
+                borderRadius: '8px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}
+              title="Yazdır / PDF Kaydet"
+            >
+              <Printer size={14} />
+              <span style={{ fontFamily: 'Outfit, sans-serif' }}>Yazdır (PDF)</span>
+            </button>
+          </div>
         </div>
 
         {/* Custom date range slider (V4) */}
@@ -1152,6 +1270,31 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* Centered Period Header */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          padding: '12px 20px', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          gap: '8px', 
+          fontSize: '1.05rem', 
+          fontWeight: '800', 
+          fontFamily: 'Outfit, sans-serif',
+          color: '#fff',
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
+          borderColor: 'rgba(255, 255, 255, 0.05)',
+          boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+          backdropFilter: 'blur(5px)',
+          margin: '8px 0',
+          width: '100%'
+        }}
+      >
+        <Calendar size={18} color="var(--color-primary)" />
+        <span style={{ textShadow: '0 0 10px rgba(99, 102, 241, 0.3)' }}>{formatPeriodLabel()}</span>
+      </div>
+
       {/* 4. The Main Excel Grid Table / Daily Detail List Table */}
       <div 
         ref={tableContainerRef}
@@ -1191,9 +1334,6 @@ export default function Dashboard({
                 <th style={{ padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                   Alt Kategori
                 </th>
-                <th style={{ width: `${Math.round(120 * zoomScale)}px`, padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'center' }}>
-                  Ayrılan Süre
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -1218,14 +1358,17 @@ export default function Dashboard({
                   (selectedGridActIds.size > 0 && !selectedGridActIds.has(log.activityId))
                 );
 
+                const todayStr = new Date().toISOString().split('T')[0];
+                const isEditable = dateStr === todayStr && !isFuture;
+
                 return (
                   <tr 
                     key={slot}
-                    className="grid-cell"
-                    onClick={() => !isFuture && handleCellClick(slot, dateStr, log || null)}
+                    className={isEditable ? "grid-cell" : ""}
+                    onClick={() => isEditable && handleCellClick(slot, dateStr, log || null)}
                     style={{ 
-                      cursor: isFuture ? 'not-allowed' : 'pointer',
-                      opacity: isFuture ? 0.35 : 1,
+                      cursor: isEditable ? 'pointer' : 'default',
+                      opacity: isFuture ? 0.35 : (isEditable ? 1 : 0.8),
                       background: 'rgba(255,255,255,0.01)',
                       transition: 'all 0.15s ease'
                     }}
@@ -1289,7 +1432,7 @@ export default function Dashboard({
                         </div>
                       ) : (
                         <div style={{ fontSize: `${0.8 * zoomScale}rem`, color: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: `${Math.round(6 * zoomScale)}px` }}>
-                          {!isFuture && (
+                          {!isFuture && isEditable && (
                             <>
                               <Plus size={Math.round(12 * zoomScale)} />
                               <span>Yeni kayıt eklemek için dokunun...</span>
@@ -1297,19 +1440,6 @@ export default function Dashboard({
                           )}
                         </div>
                       )}
-                    </td>
-
-                    <td 
-                      className="excel-cell-capsule"
-                      style={{ 
-                        padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, 
-                        fontSize: `${0.85 * zoomScale}rem`, 
-                        fontWeight: '700', 
-                        color: 'var(--color-text-secondary)',
-                        textAlign: 'center'
-                      }}
-                    >
-                      {log ? (log.durationMinutes || getGridIntervalMinutes()) : getGridIntervalMinutes()} dk
                     </td>
                   </tr>
                 );
@@ -1414,6 +1544,8 @@ export default function Dashboard({
                   const dateStr = formatDateStr(day);
                   const log = getLogForCell(dateStr, slot);
                   const isFuture = day.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const isEditable = dateStr === todayStr && !isFuture;
                   
                   // Filter visibility check
                   const isFilteredOut = log && (
@@ -1424,16 +1556,16 @@ export default function Dashboard({
                   return (
                     <td 
                       key={dayIdx}
-                      className={`excel-cell-capsule ${isFuture ? '' : 'grid-cell'}`}
-                      onClick={() => !isFuture && handleCellClick(slot, dateStr, log || null)}
+                      className={`excel-cell-capsule ${isEditable ? 'grid-cell' : ''}`}
+                      onClick={() => isEditable && handleCellClick(slot, dateStr, log || null)}
                       style={{ 
                         width: `${95 * zoomScale}px`,
                         minWidth: `${95 * zoomScale}px`,
                         padding: '1px',
                         height: `${42 * zoomScale}px`,
                         position: 'relative',
-                        cursor: isFuture ? 'not-allowed' : 'pointer',
-                        opacity: isFuture ? 0.35 : 1,
+                        cursor: isEditable ? 'pointer' : 'default',
+                        opacity: isFuture ? 0.35 : (isEditable ? 1 : 0.8),
                         background: 'transparent',
                         transition: 'all 0.15s ease'
                       }}
@@ -1486,19 +1618,19 @@ export default function Dashboard({
                             transition: 'all 0.15s ease'
                           }}
                           onMouseEnter={(e) => {
-                            if (!isFuture) {
+                            if (isEditable) {
                               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
                               e.currentTarget.style.borderColor = 'var(--color-primary-glow)';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!isFuture) {
+                            if (isEditable) {
                               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
                               e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
                             }
                           }}
                         >
-                          {!isFuture && <Plus size={Math.round(10 * zoomScale)} style={{ opacity: 0 }} className="cell-plus" />}
+                          {!isFuture && isEditable && <Plus size={Math.round(10 * zoomScale)} style={{ opacity: 0 }} className="cell-plus" />}
                         </div>
                       )}
                     </td>
@@ -1580,9 +1712,7 @@ export default function Dashboard({
                       { label: `${gridInterval * 4} dk (1 sa)`, value: gridInterval * 4 },
                       { label: `${gridInterval * 6} dk (1.5 sa)`, value: gridInterval * 6 },
                       { label: `${gridInterval * 8} dk (2 sa)`, value: gridInterval * 8 },
-                      { label: `${gridInterval * 12} dk (3 sa)`, value: gridInterval * 12 },
-                      { label: `${gridInterval * 16} dk (4 sa)`, value: gridInterval * 16 },
-                    ];
+                    ].filter(opt => opt.value <= 120);
                     return durationOptions.map(opt => (
                       <button
                         key={opt.value}
@@ -1617,14 +1747,16 @@ export default function Dashboard({
               />
 
               {/* Category Quick Filter */}
-              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', width: '100%' }}>
                 <button 
                   className="btn" 
                   onClick={() => setSelectedCategoryId('all')}
                   style={{ 
-                    padding: '6px 12px', 
+                    padding: '10px 18px', 
                     borderRadius: '8px', 
-                    fontSize: '0.8rem',
+                    fontSize: '0.82rem',
+                    flexShrink: 0,
+                    minWidth: '85px',
                     background: selectedCategoryId === 'all' ? 'var(--color-primary)' : 'rgba(255,255,255,0.05)',
                     color: '#fff'
                   }}
@@ -1637,9 +1769,11 @@ export default function Dashboard({
                     className="btn" 
                     onClick={() => setSelectedCategoryId(cat.id)}
                     style={{ 
-                      padding: '6px 12px', 
+                      padding: '10px 18px', 
                       borderRadius: '8px', 
-                      fontSize: '0.8rem',
+                      fontSize: '0.82rem',
+                      flexShrink: 0,
+                      minWidth: '105px',
                       background: selectedCategoryId === cat.id ? cat.color : 'rgba(255,255,255,0.05)',
                       color: selectedCategoryId === cat.id ? cat.textColor : 'var(--color-text-secondary)'
                     }}
@@ -1657,67 +1791,78 @@ export default function Dashboard({
                   gap: '10px', 
                   maxHeight: '220px', 
                   overflowY: 'auto',
-                  padding: '4px' 
+                  padding: '4px',
+                  width: '100%'
                 }}
               >
                 {filteredActivities.length > 0 ? (
-                  filteredActivities.map(({ category, activity }) => (
-                    <button
-                      key={activity.id}
-                      onClick={() => handleSelectActivity(activity, category)}
-                      style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${category.color}40`,
-                        borderRadius: '12px',
-                        padding: '12px 10px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = `${category.color}15`;
-                        e.currentTarget.style.borderColor = category.color;
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                        e.currentTarget.style.borderColor = `${category.color}40`;
-                        e.currentTarget.style.transform = 'none';
-                      }}
-                    >
-                      <span 
-                        style={{ 
-                          background: category.color, 
-                          color: category.textColor, 
-                          padding: '2px 8px', 
-                          borderRadius: '6px', 
-                          fontWeight: '800',
-                          fontSize: '0.75rem' 
+                  filteredActivities.map(({ category, activity }) => {
+                    const isSelected = tempSelectedActivity?.activity.id === activity.id;
+                    return (
+                      <button
+                        key={activity.id}
+                        type="button"
+                        onClick={() => setTempSelectedActivity({ activity, category })}
+                        style={{
+                          background: isSelected ? category.color : 'rgba(255,255,255,0.03)',
+                          border: isSelected ? `2px solid ${category.color}` : `1px solid ${category.color}40`,
+                          borderRadius: '12px',
+                          padding: '12px 10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: isSelected ? `0 0 12px ${category.color}50` : 'none',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = `${category.color}15`;
+                            e.currentTarget.style.borderColor = category.color;
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                            e.currentTarget.style.borderColor = `${category.color}40`;
+                            e.currentTarget.style.transform = 'none';
+                          }
                         }}
                       >
-                        {activity.code}
-                      </span>
-                      <span 
-                        style={{ 
-                          fontSize: '0.8rem', 
-                          fontWeight: '500', 
-                          textAlign: 'center',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          height: '2.4em',
-                          lineHeight: '1.2em' 
-                        }}
-                      >
-                        {activity.name}
-                      </span>
-                    </button>
-                  ))
+                        <span 
+                          style={{ 
+                            background: isSelected ? 'rgba(255, 255, 255, 0.2)' : category.color, 
+                            color: isSelected ? '#fff' : category.textColor, 
+                            padding: '2px 8px', 
+                            borderRadius: '6px', 
+                            fontWeight: '800',
+                            fontSize: '0.75rem' 
+                          }}
+                        >
+                          {activity.code}
+                        </span>
+                        <span 
+                          style={{ 
+                            fontSize: '0.82rem', 
+                            fontWeight: '600', 
+                            textAlign: 'center',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            height: '2.4em',
+                            lineHeight: '1.2em',
+                            color: isSelected ? '#fff' : 'rgba(255,255,255,0.95)'
+                          }}
+                        >
+                          {activity.name}
+                        </span>
+                      </button>
+                    );
+                  })
                 ) : (
                   <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: 'var(--color-text-secondary)' }}>
                     Aktivite bulunamadı.
@@ -1726,7 +1871,7 @@ export default function Dashboard({
               </div>
 
               {/* Notes input */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', width: '100%' }}>
                 <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                   Açıklama / Notlar
                 </label>
@@ -1735,7 +1880,7 @@ export default function Dashboard({
                   placeholder="Ekstra detaylar ekleyin..." 
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  style={{ resize: 'none' }}
+                  style={{ resize: 'none', width: '100%' }}
                 />
               </div>
 
@@ -1756,12 +1901,29 @@ export default function Dashboard({
                   onClick={() => {
                     setShowLogModal(false);
                     setSelectedLog(null);
+                    setTempSelectedActivity(null);
                     setActiveCell(null);
                     setCurrentMissedIndex(-1);
                     clearPendingLog();
                   }}
                 >
                   İptal
+                </button>
+                <button 
+                  type="button"
+                  className="btn btn-primary" 
+                  disabled={!tempSelectedActivity} 
+                  onClick={handleSaveClick}
+                  style={{ 
+                    padding: '10px 24px', 
+                    opacity: !tempSelectedActivity ? 0.5 : 1, 
+                    cursor: !tempSelectedActivity ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  Kaydet
                 </button>
               </div>
             </div>

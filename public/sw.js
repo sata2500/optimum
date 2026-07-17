@@ -64,3 +64,36 @@ self.addEventListener('fetch', event => {
       })
   );
 });
+
+// Notification Click handler: focus or open the app window
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+
+  // Find all open clients (windows) of this origin
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      // If there is already an open window, focus it
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          // Pass the slot and date if they exist in event.notification.data
+          if (event.notification.data) {
+            client.postMessage({
+              type: 'optimum-notification-clicked',
+              slot: event.notification.data.slot,
+              date: event.notification.data.date
+            });
+          }
+          return client.focus();
+        }
+      }
+      // If no window is open, open a new one
+      if (self.clients.openWindow) {
+        let url = '/';
+        if (event.notification.data) {
+          url = `/?slot=${event.notification.data.slot}&date=${event.notification.data.date}`;
+        }
+        return self.clients.openWindow(url);
+      }
+    })
+  );
+});

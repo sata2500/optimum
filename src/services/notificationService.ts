@@ -222,23 +222,42 @@ export const notificationService = {
       const dateStr = nextSlot.toISOString().split('T')[0];
 
       try {
-        const notification = new Notification('Optimum Flow', {
-          body: `Son dilimde (${slotStr}) ne yaptın? Kaydetmek için tıkla.`,
-          tag: 'optimum-flow-reminder',
-          requireInteraction: true,
-        });
-
-        notification.onclick = () => {
-          window.focus();
-          const event = new CustomEvent('optimum-notification-clicked', {
-            detail: { slot: slotStr, date: dateStr },
+        let sent = false;
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification('Optimum Flow', {
+              body: `Son dilimde (${slotStr}) ne yaptın? Kaydetmek için tıkla.`,
+              tag: 'optimum-flow-reminder',
+              requireInteraction: true,
+              data: { slot: slotStr, date: dateStr }
+            }).then(() => {
+              sent = true;
+            }).catch(swErr => {
+              console.warn('SW notification in browser timer failed, falling back:', swErr);
+            });
           });
-          window.dispatchEvent(event);
-          notification.close();
-        };
+        }
+        
+        setTimeout(() => {
+          if (!sent && 'Notification' in window) {
+            const notification = new Notification('Optimum Flow', {
+              body: `Son dilimde (${slotStr}) ne yaptın? Kaydetmek için tıkla.`,
+              tag: 'optimum-flow-reminder',
+              requireInteraction: true,
+            });
+
+            notification.onclick = () => {
+              window.focus();
+              const event = new CustomEvent('optimum-notification-clicked', {
+                detail: { slot: slotStr, date: dateStr },
+              });
+              window.dispatchEvent(event);
+              notification.close();
+            };
+          }
+        }, 100);
       } catch (err) {
         console.error('Failed to create browser Notification:', err);
-        // Fallback to alert if in focus, or fallback alert notification
       }
 
       // Reschedule the next one

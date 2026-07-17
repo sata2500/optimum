@@ -46,10 +46,22 @@ const PHASE = {
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-const notify = (title: string, body: string) => {
+const notify = async (title: string, body: string) => {
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body });
+      let sent = false;
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(title, { body });
+          sent = true;
+        } catch (swErr) {
+          console.warn('SW pomodoro notification failed:', swErr);
+        }
+      }
+      if (!sent) {
+        new Notification(title, { body });
+      }
     }
   } catch { /* silent */ }
 };

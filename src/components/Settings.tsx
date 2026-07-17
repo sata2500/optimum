@@ -219,16 +219,33 @@ export default function Settings({
     const granted = await requestAndVerifyPermission();
     if (granted) {
       try {
-        new Notification('Optimum Flow', {
-          body: 'Zaman takip hatırlatıcı bildirimleriniz aktif edildi!',
-          requireInteraction: false,
-        });
+        let sent = false;
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            await reg.showNotification('Optimum Flow', {
+              body: 'Zaman takip hatırlatıcı bildirimleriniz aktif edildi!',
+              requireInteraction: false,
+            });
+            sent = true;
+          } catch (swErr) {
+            console.warn('SW notification failed, falling back:', swErr);
+          }
+        }
+        
+        if (!sent && 'Notification' in window) {
+          new Notification('Optimum Flow', {
+            body: 'Zaman takip hatırlatıcı bildirimleriniz aktif edildi!',
+            requireInteraction: false,
+          });
+        }
+
         toast.success('Test bildirimi başarıyla gönderildi.');
         setFormNotifications(true);
         await notificationService.rescheduleNotifications();
       } catch (err) {
         console.error(err);
-        toast.error('Bildirim gönderilemedi. Secure context (HTTPS/localhost) gerekli.');
+        toast.error('Bildirim gönderilemedi. Secure context (HTTPS/localhost) veya PWA izin yetkisi gerekli.');
       }
     }
   };

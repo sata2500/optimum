@@ -82,6 +82,28 @@ export default function App() {
     };
     window.addEventListener('optimum-notification-clicked', handleNotificationClicked);
 
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'optimum-notification-clicked') {
+        const { slot, date } = event.data;
+        if (slot && date) {
+          setPendingLog({ slot, date });
+          setActiveTab('dashboard');
+        }
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramSlot = urlParams.get('slot');
+    const paramDate = urlParams.get('date');
+    if (paramSlot && paramDate) {
+      setPendingLog({ slot: paramSlot, date: paramDate });
+      setActiveTab('dashboard');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     const init = async () => {
       const status = await notificationService.getPermissionStatus();
       if (status === 'default' && settings.notificationsEnabled) {
@@ -91,7 +113,12 @@ export default function App() {
     };
     init();
 
-    return () => window.removeEventListener('optimum-notification-clicked', handleNotificationClicked);
+    return () => {
+      window.removeEventListener('optimum-notification-clicked', handleNotificationClicked);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      }
+    };
   }, [settings.notificationsEnabled]);
 
   const handleSettingsChange = async (newSettings: AppSettings) => {
