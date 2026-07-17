@@ -1,14 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Play, Pause, RotateCcw, SkipForward,
   Settings as SettingsIcon, X, Check,
   BrainCircuit, Coffee, Moon
 } from 'lucide-react';
-import { pomodoroService } from '../services/pomodoroService';
-import type { PomodoroSettings, PomodoroSessionRecord } from '../services/pomodoroService';
-import { useToast } from './Toast';
-
-type Phase = 'work' | 'short-break' | 'long-break';
+import type { PomodoroSettings } from '../services/pomodoroService';
+import { usePomodoro } from '../hooks/usePomodoro';
 
 const PHASE = {
   work: {
@@ -46,25 +43,6 @@ const PHASE = {
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-const notify = async (title: string, body: string) => {
-  try {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      let sent = false;
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          await reg.showNotification(title, { body });
-          sent = true;
-        } catch (swErr) {
-          console.warn('SW pomodoro notification failed:', swErr);
-        }
-      }
-      if (!sent) {
-        new Notification(title, { body });
-      }
-    }
-  } catch { /* silent */ }
-};
 
 const RING_R = 100;
 const CIRC = 2 * Math.PI * RING_R;
@@ -107,23 +85,30 @@ function SliderRow({ label, value, min, max, unit, color, onChange }: SliderRowP
   );
 }
 
-export default function Pomodoro() {
-  const toast = useToast();
+interface PomodoroProps {
+  pomodoroState: ReturnType<typeof usePomodoro>;
+}
 
-  const [settings, setSettings] = useState<PomodoroSettings>(() => pomodoroService.getSettings());
-  const [draft, setDraft] = useState<PomodoroSettings>(() => pomodoroService.getSettings());
-  const [phase, setPhase] = useState<Phase>('work');
-  const [timeLeft, setTimeLeft] = useState(() => pomodoroService.getSettings().workMinutes * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [completedCycles, setCompletedCycles] = useState(0);
+export default function Pomodoro({ pomodoroState }: PomodoroProps) {
+  const {
+    settings,
+    phase,
+    timeLeft,
+    isRunning,
+    completedCycles,
+    todayStat,
+    handlePlayPause,
+    handleReset,
+    handleSkip,
+    handleUpdateSettings
+  } = pomodoroState;
+
+  const [draft, setDraft] = useState<PomodoroSettings>(() => settings);
   const [showSettings, setShowSettings] = useState(false);
-  const [todayStat, setTodayStat] = useState<PomodoroSessionRecord | null>(
-    () => pomodoroService.getSessionToday()
-  );
 
-  // Refs to avoid stale closures in interval/timeout callbacks
-  const stateRef = useRef({ phase, settings, completedCycles });
-  useEffect(() => { stateRef.current = { phase, settings, completedCycles }; }, [phase, settings, completedCycles]);
+  useEffect(() => {
+    setDraft(settings);
+  }, [settings]);
 
   const totalTime = useMemo(() => {
     if (phase === 'work') return settings.workMinutes * 60;
@@ -134,85 +119,9 @@ export default function Pomodoro() {
   const progress = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const cfg = PHASE[phase];
 
-  // ── Phase End Logic ─────────────────────────────────────────────
-  const handlePhaseEnd = useCallback(() => {
-    const { phase: p, settings: s, completedCycles: cc } = stateRef.current;
-
-    if (p === 'work') {
-      const newCC = cc + 1;
-      pomodoroService.recordCompletedPomodoro(s.workMinutes);
-      setCompletedCycles(newCC);
-      setTodayStat(pomodoroService.getSessionToday());
-
-      const goLong = newCC % s.cyclesBeforeLong === 0;
-
-      if (goLong) {
-        notify('🎉 Pomodoro Tamamlandı!', 'Uzun mola zamanı. İyi dinlenmeler!');
-        toast.success(`🎉 ${s.cyclesBeforeLong} döngü tamamlandı! Uzun mola hak ettiniz.`);
-        setPhase('long-break');
-        setTimeLeft(s.longBreakMinutes * 60);
-        if (s.autoStartBreak) setTimeout(() => setIsRunning(true), 200);
-      } else {
-        notify('✓ Pomodoro Tamamlandı!', 'Kısa mola zamanı. Nefes alın!');
-        toast.info('✓ Pomodoro bitti. Kısa mola zamanı!');
-        setPhase('short-break');
-        setTimeLeft(s.shortBreakMinutes * 60);
-        if (s.autoStartBreak) setTimeout(() => setIsRunning(true), 200);
-      }
-    } else {
-      notify('⏰ Mola Bitti!', 'Odaklanma zamanı. Haydi!');
-      toast.info('⏰ Mola bitti. Odaklanma zamanı!');
-      setPhase('work');
-      setTimeLeft(s.workMinutes * 60);
-      if (s.autoStartWork) setTimeout(() => setIsRunning(true), 200);
-    }
-  }, [toast]);
-
-  const handlePhaseEndRef = useRef(handlePhaseEnd);
-  useEffect(() => { handlePhaseEndRef.current = handlePhaseEnd; }, [handlePhaseEnd]);
-
-  // ── Timer Interval ───────────────────────────────────────────────
-  useEffect(() => {
-    if (!isRunning) return;
-    const id = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(id);
-          setIsRunning(false);
-          setTimeout(() => handlePhaseEndRef.current(), 50);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [isRunning]);
-
-  // ── Controls ─────────────────────────────────────────────────────
-  const handlePlayPause = () => setIsRunning(p => !p);
-
-  const handleReset = () => {
-    setIsRunning(false);
-    const s = stateRef.current.settings;
-    if (phase === 'work') setTimeLeft(s.workMinutes * 60);
-    else if (phase === 'short-break') setTimeLeft(s.shortBreakMinutes * 60);
-    else setTimeLeft(s.longBreakMinutes * 60);
-  };
-
-  const handleSkip = () => {
-    setIsRunning(false);
-    setTimeout(() => handlePhaseEndRef.current(), 50);
-  };
-
   const handleSaveSettings = () => {
-    pomodoroService.saveSettings(draft);
-    setSettings(draft);
-    setIsRunning(false);
-    setPhase('work');
-    setTimeLeft(draft.workMinutes * 60);
-    setCompletedCycles(0);
+    handleUpdateSettings(draft);
     setShowSettings(false);
-    toast.success('Pomodoro ayarları kaydedildi.');
   };
 
   // ── Cycle Dots ──────────────────────────────────────────────────

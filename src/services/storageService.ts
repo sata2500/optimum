@@ -41,6 +41,7 @@ export interface AppSettings {
   userName?: string; // Profile name
   dailyProductiveTargetHours?: number; // Total productive hours goal per day
   categoryTargets?: { [catId: string]: number }; // Individual category goals
+  notificationSound?: 'modern' | 'classic' | 'soft' | 'silent';
 }
 
 const STORAGE_KEYS = {
@@ -145,7 +146,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     egitim: 2,
     market: 3,
     ibadet: 1
-  }
+  },
+  notificationSound: 'modern'
 };
 
 export const storageService = {
@@ -403,6 +405,18 @@ export const storageService = {
         .eq('user_id', userId);
     } catch (err) {
       console.error('Delete from cloud failed:', err);
+    }
+  },
+
+  async clearAllLogsFromCloud(userId: string): Promise<void> {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('time_logs')
+        .delete()
+        .eq('user_id', userId);
+    } catch (err) {
+      console.error('Clear cloud logs failed:', err);
     }
   },
 

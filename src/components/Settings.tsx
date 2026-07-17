@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Plus, Trash2, Edit3, X, Save, AlertTriangle, Settings as SettingsIcon,
-  FolderKanban, Download, Upload, Check, Bell, RefreshCcw, ShieldAlert,
+  FolderKanban, Download, Upload, Check, Bell, ShieldAlert,
   Clock, Zap
 } from 'lucide-react';
 import type { Category, Activity, AppSettings } from '../services/storageService';
@@ -10,6 +10,7 @@ import { notificationService } from '../services/notificationService';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
 import Auth from './Auth';
+import { playNotificationSound } from '../utils/audio';
 
 interface SettingsProps {
   categories: Category[];
@@ -43,9 +44,10 @@ const INITIAL_CONFIRM: ConfirmState = {
 };
 
 const INTERVAL_OPTIONS = [
-  { value: 15, label: '15', sub: 'Dakika' },
-  { value: 30, label: '30', sub: 'Dakika' },
-  { value: 60, label: '60', sub: 'Dakika / 1 Saat' },
+  { value: 15, label: '15 Dk', sub: 'Dakika' },
+  { value: 30, label: '30 Dk', sub: 'Dakika' },
+  { value: 60, label: '1 Saat', sub: '60 Dakika' },
+  { value: 120, label: '2 Saat', sub: '120 Dakika' },
 ];
 
 const PRESET_COLORS = [
@@ -79,6 +81,7 @@ export default function Settings({
   const [formStart, setFormStart] = useState<string>(settings.startHour);
   const [formEnd, setFormEnd] = useState<string>(settings.endHour);
   const [formNotifications, setFormNotifications] = useState<boolean>(settings.notificationsEnabled);
+  const [formSound, setFormSound] = useState<'modern' | 'classic' | 'soft' | 'silent'>(settings.notificationSound || 'modern');
   const [notifPermission, setNotifPermission] = useState<string>('default');
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
   
@@ -209,6 +212,7 @@ export default function Settings({
       userName: formUserName.trim() || 'Kullanıcı',
       dailyProductiveTargetHours: formDailyProductiveTargetHours,
       categoryTargets: formCategoryTargets,
+      notificationSound: formSound,
     });
 
     setIsSavingGeneral(false);
@@ -240,6 +244,7 @@ export default function Settings({
           });
         }
 
+        playNotificationSound(formSound);
         toast.success('Test bildirimi başarıyla gönderildi.');
         setFormNotifications(true);
         await notificationService.rescheduleNotifications();
@@ -422,25 +427,18 @@ export default function Settings({
     e.target.value = '';
   };
 
-  const handleLoadMockData = () => {
-    showConfirm(
-      'Örnek Veri Yükle',
-      '9 günlük örnek veriler yüklenecek. Bu işlem mevcut zaman kayıtlarınızın üzerine yazacak. Devam etmek istiyor musunuz?',
-      () => {
-        storageService.generateMockData();
-        onBackupImport();
-        closeConfirm();
-        toast.success('Örnek veriler başarıyla yüklendi!');
-      },
-      { confirmLabel: 'Yükle' }
-    );
-  };
-
   const handleClearLogs = () => {
     showConfirm(
       'Tüm Kayıtları Temizle',
-      'Tüm zaman kayıtlarınız kalıcı olarak silinecek. Kategorileriniz ve ayarlarınız korunacak. Bu işlem geri alınamaz!',
-      () => {
+      'Tüm zaman kayıtlarınız (yereldeki ve buluttaki) kalıcı olarak silinecek. Kategorileriniz ve ayarlarınız korunacak. Bu işlem geri alınamaz!',
+      async () => {
+        if (user) {
+          try {
+            await storageService.clearAllLogsFromCloud(user.id);
+          } catch (e) {
+            console.error('Cloud clear logs failed:', e);
+          }
+        }
         storageService.clearAllLogs();
         onBackupImport();
         closeConfirm();
@@ -452,14 +450,14 @@ export default function Settings({
 
   const handleResetAllClick = () => {
     showConfirm(
-      'Tüm Uygulamayı Sıfırla',
-      'TÜM verileriniz (zaman kayıtları, özel kategoriler, ayarlar) kalıcı olarak silinecek ve uygulama fabrika ayarlarına dönecek. Bu işlem GERİ ALINAMAZ!',
+      'Hesabı ve Tüm Verileri Sil',
+      'Uygulamadaki ve buluttaki TÜM verileriniz (zaman kayıtları, kategoriler, ayarlar) kalıcı olarak silinecek ve bağlı hesabınız kapatılacaktır. Bu işlem geri alınamaz!',
       () => {
         onResetAll();
         closeConfirm();
-        toast.success('Uygulama fabrika ayarlarına döndürüldü.');
+        toast.success('Hesap bağlantısı kesildi ve tüm veriler silindi.');
       },
-      { danger: true, confirmLabel: '🗑 Evet, Her Şeyi Sıfırla' }
+      { danger: true, confirmLabel: '🗑 Evet, Hesabı ve Verileri Sil' }
     );
   };
 
@@ -604,6 +602,37 @@ export default function Settings({
                 </button>
               ))}
             </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <label style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                Özel Süre Belirle (Dakika)
+              </label>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input 
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={formInterval}
+                  onChange={(e) => {
+                    const val = Math.max(1, Number(e.target.value));
+                    setFormInterval(val);
+                  }}
+                  style={{
+                    width: '100px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--color-border)',
+                    color: '#fff',
+                    fontSize: '0.85rem',
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                  Özel dakika aralıklarıyla bildirim gönderilir. (Şu anki değer: {formInterval} dakika)
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Time Range */}
@@ -724,11 +753,43 @@ export default function Settings({
               </div>
             </div>
 
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                Bildirim Sesi Melodisi
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', marginTop: '4px' }}>
+                {(['modern', 'classic', 'soft', 'silent'] as const).map(snd => (
+                  <button
+                    key={snd}
+                    type="button"
+                    onClick={() => {
+                      setFormSound(snd);
+                      playNotificationSound(snd);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      background: formSound === snd ? 'var(--color-primary)' : 'rgba(255,255,255,0.02)',
+                      border: formSound === snd ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {snd === 'modern' ? '✨ Modern' : snd === 'classic' ? '🔔 Klasik Zil' : snd === 'soft' ? '🎵 Yumuşak' : '🔇 Sessiz'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               className="btn btn-secondary"
               onClick={handleTestNotification}
-              style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: '10px', fontSize: '0.85rem', border: '1px solid var(--color-primary-glow)', color: 'var(--color-primary)' }}
+              style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: '10px', fontSize: '0.85rem', border: '1px solid var(--color-primary-glow)', color: 'var(--color-primary)', marginTop: '8px' }}
             >
               <Bell size={14} />
               Test Bildirimi Gönder
@@ -936,33 +997,16 @@ export default function Settings({
               </label>
             </div>
 
-            {/* Mock Data */}
-            <div style={{ border: '1px solid var(--color-border)', borderRadius: '16px', padding: '20px', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <RefreshCcw size={16} color="#22c55e" />
-                </div>
-                <h4 style={{ fontSize: '0.92rem', fontWeight: '700', fontFamily: 'Outfit' }}>Örnek Veri</h4>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', flex: 1 }}>
-                Uygulamayı test etmek için 9 günlük örnek veriler yükleyin.
-              </p>
-              <button className="btn btn-secondary" onClick={handleLoadMockData} style={{ fontSize: '0.82rem' }}>
-                <RefreshCcw size={13} />
-                Örnek Veri Yükle
-              </button>
-            </div>
-
             {/* Clear Logs */}
             <div style={{ border: '1px solid rgba(239,68,68,0.2)', borderRadius: '16px', padding: '20px', background: 'rgba(239,68,68,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Trash2 size={16} color="#ef4444" />
                 </div>
-                <h4 style={{ fontSize: '0.92rem', fontWeight: '700', fontFamily: 'Outfit', color: '#ef4444' }}>Kayıtları Sil</h4>
+                <h4 style={{ fontSize: '0.92rem', fontWeight: '700', fontFamily: 'Outfit', color: '#ef4444' }}>Zaman Kayıtlarını Sil</h4>
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', flex: 1 }}>
-                Tüm zaman kayıtlarını siler. Kategoriler korunur.
+                Uygulamadaki ve buluttaki tüm zaman takip kayıtlarınızı siler. Kategorileriniz ve ayarlarınız korunur.
               </p>
               <button
                 className="btn btn-secondary"
@@ -980,10 +1024,10 @@ export default function Settings({
                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ShieldAlert size={16} color="#ef4444" />
                 </div>
-                <h4 style={{ fontSize: '0.92rem', fontWeight: '700', fontFamily: 'Outfit', color: '#ef4444' }}>Fabrika Sıfırlama</h4>
+                <h4 style={{ fontSize: '0.92rem', fontWeight: '700', fontFamily: 'Outfit', color: '#ef4444' }}>Hesabı ve Tüm Verileri Sil</h4>
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', flex: 1 }}>
-                Tüm veri, kategori ve ayarları siler. Uygulama baştan başlar.
+                Uygulamadaki tüm verileri temizler, bağlı hesabınızı kapatır ve buluttaki tüm kayıtlarınızı kalıcı olarak siler.
               </p>
               <button
                 className="btn btn-danger"
@@ -991,7 +1035,7 @@ export default function Settings({
                 style={{ fontSize: '0.82rem' }}
               >
                 <ShieldAlert size={13} />
-                Her Şeyi Sıfırla
+                Hesabı ve Tüm Verileri Sil
               </button>
             </div>
           </div>

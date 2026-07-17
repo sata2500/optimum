@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { 
-  BarChart3, ListFilter, AlertCircle, Calendar, Download, Printer, TrendingUp, Sparkles
+  BarChart3, ListFilter, AlertCircle, Download, Printer, TrendingUp, Sparkles
 } from 'lucide-react';
 import type { Category, TimeLog } from '../services/storageService';
 import { storageService } from '../services/storageService';
@@ -12,34 +12,36 @@ interface AnalyticsProps {
 
 export default function Analytics({ categories, logs }: AnalyticsProps) {
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
-  const [timeRange, setTimeRange] = useState<'7days' | '30days' | 'all' | 'custom'>('7days');
   
-  // Custom Date Picker States
-  const [startDateStr, setStartDateStr] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [endDateStr, setEndDateStr] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  // Dynamic Slider configuration (1-60 Days)
+  const [daysCount, setDaysCount] = useState<number>(30);
+  const [localDaysCount, setLocalDaysCount] = useState<number>(30);
+
+  const debounceTimeoutRef = useRef<any>(null);
+  const debouncedSetDaysCount = useCallback((val: number) => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      setDaysCount(val);
+    }, 120);
+  }, []);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // ── FILTER LOGS BY DATE RANGE ─────────────────────────────────────
   const rangeLogs = useMemo(() => {
     const now = Date.now();
-    
-    if (timeRange === 'custom') {
-      const startMs = new Date(startDateStr + 'T00:00:00').getTime();
-      const endMs = new Date(endDateStr + 'T23:59:59').getTime();
-      return logs.filter(log => log.timestamp >= startMs && log.timestamp <= endMs);
-    }
-    
-    let msLimit = Infinity;
-    if (timeRange === '7days') msLimit = 7 * 24 * 60 * 60 * 1000;
-    else if (timeRange === '30days') msLimit = 30 * 24 * 60 * 60 * 1000;
-    
+    const msLimit = daysCount * 24 * 60 * 60 * 1000;
     return logs.filter(log => now - log.timestamp <= msLimit);
-  }, [logs, timeRange, startDateStr, endDateStr]);
+  }, [logs, daysCount]);
 
   // ── 1. PRODUCTIVITY METRICS ────────────────────────────────────────
   const { productivityScore, productiveHours, totalHours } = useMemo(() => {
@@ -137,19 +139,10 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
     const datesList: string[] = [];
     const intervalMinutes = storageService.getSettings().intervalMinutes;
     
-    if (timeRange === 'custom') {
-      const start = new Date(startDateStr);
-      const end = new Date(endDateStr);
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        datesList.push(d.toISOString().split('T')[0]);
-      }
-    } else {
-      const daysCount = timeRange === '7days' ? 7 : timeRange === '30days' ? 30 : 15;
-      for (let i = daysCount - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        datesList.push(d.toISOString().split('T')[0]);
-      }
+    for (let i = daysCount - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      datesList.push(d.toISOString().split('T')[0]);
     }
 
     return datesList.map(dateStr => {
@@ -168,7 +161,7 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
       const shortDate = new Date(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
       return { date: dateStr, shortDate, score, hasLogs: dayLogs.length > 0 };
     });
-  }, [logs, categories, timeRange, startDateStr, endDateStr]);
+  }, [logs, categories, daysCount]);
 
   // ── 5. TOP 5 MOST TIMED ACTIVITIES ────────────────────────────────
   const topActivities = useMemo(() => {
@@ -260,27 +253,35 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
         
         {/* Buttons and controls */}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          {/* Ranges */}
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', padding: '2px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-            {(['7days', '30days', 'all', 'custom'] as const).map(range => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: timeRange === range ? 'var(--color-primary)' : 'transparent',
-                  color: timeRange === range ? '#fff' : 'var(--color-text-secondary)',
-                  fontWeight: '600',
-                  transition: 'all 0.15s ease'
+          {/* Dynamic Slider for Date Range Selection */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(255,255,255,0.02)', padding: '6px 16px', borderRadius: '12px', border: '1px solid var(--color-border)', minWidth: '280px', flex: 1 }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+              Zaman Aralığı: <strong style={{ color: 'var(--color-primary)', fontFamily: 'Outfit' }}>{localDaysCount} Gün</strong>
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>1 G</span>
+              <input 
+                type="range"
+                min={1}
+                max={60}
+                value={localDaysCount}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setLocalDaysCount(val);
+                  debouncedSetDaysCount(val);
                 }}
-              >
-                {range === '7days' ? '7 Gün' : range === '30days' ? '30 Gün' : range === 'all' ? 'Tümü' : 'Özel'}
-              </button>
-            ))}
+                style={{
+                  flex: 1,
+                  height: '6px',
+                  borderRadius: '3px',
+                  background: 'rgba(255,255,255,0.1)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  accentColor: 'var(--color-primary)'
+                }}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>60 G</span>
+            </div>
           </div>
 
           {/* CSV & PDF Actions */}
@@ -309,30 +310,7 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
         </div>
       </div>
 
-      {/* Custom Date Pickers Drawer */}
-      {timeRange === 'custom' && (
-        <div className="glass-panel no-print animate-scale-in" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={15} color="var(--color-text-muted)" />
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Tarih Aralığı Seçin:</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <input 
-              type="date" 
-              value={startDateStr} 
-              onChange={e => setStartDateStr(e.target.value)} 
-              style={{ colorScheme: 'dark', padding: '6px 12px', borderRadius: '8px', fontSize: '0.85rem' }} 
-            />
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>-</span>
-            <input 
-              type="date" 
-              value={endDateStr} 
-              onChange={e => setEndDateStr(e.target.value)} 
-              style={{ colorScheme: 'dark', padding: '6px 12px', borderRadius: '8px', fontSize: '0.85rem' }} 
-            />
-          </div>
-        </div>
-      )}
+
 
       {logs.length === 0 ? (
         <div 
@@ -362,7 +340,7 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
             <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>OPTIMUM ZAMAN RAPORU</h1>
             <p style={{ fontSize: '0.9rem', color: '#666' }}>
               Rapor Tarihi: {new Date().toLocaleDateString('tr-TR')} | 
-              Aralık: {timeRange === 'custom' ? `${startDateStr} ile ${endDateStr}` : timeRange === '7days' ? 'Son 7 Gün' : timeRange === '30days' ? 'Son 30 Gün' : 'Tüm Zamanlar'}
+              Aralık: Son {daysCount} Gün
             </p>
           </div>
 
@@ -503,7 +481,7 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
 
             {/* Stacked Daily Bar Chart */}
             <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h3 style={{ fontSize: '1.05rem', fontFamily: 'Outfit' }}>Son 7 Günlük Yoğunluk</h3>
+              <h3 style={{ fontSize: '1.05rem', fontFamily: 'Outfit' }}>Günlük Üretkenlik Trendi ({daysCount} Gün)</h3>
               
               <div 
                 style={{ 

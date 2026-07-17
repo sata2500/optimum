@@ -374,11 +374,7 @@ export default function Dashboard({
     return currentAnchorDate >= today;
   };
 
-  const handleJumpToToday = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setCurrentAnchorDate(today);
-  };
+
 
   const formatDateStr = (date: Date): string => {
     return date.toISOString().split('T')[0];
@@ -1076,26 +1072,24 @@ export default function Dashboard({
         >
 
         {/* Date navigators & actions */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
-              <ChevronLeft size={14} />
-            </button>
-            <button className="btn btn-secondary" onClick={handleJumpToToday} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
-              Bugün
+            <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '8px 12px', borderRadius: '8px' }} title="Önceki Sayfa">
+              <ChevronLeft size={16} />
             </button>
             <button 
               className="btn btn-secondary" 
               onClick={() => handleNavigateAnchor('next')} 
               disabled={isNextPeriodFuture()}
               style={{ 
-                padding: '6px 10px', 
+                padding: '8px 12px', 
                 borderRadius: '8px',
                 opacity: isNextPeriodFuture() ? 0.5 : 1,
                 cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
               }}
+              title="Sonraki Sayfa"
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
           </div>
 
@@ -1105,7 +1099,7 @@ export default function Dashboard({
               className="btn btn-secondary" 
               onClick={handleExportExcel}
               style={{ 
-                padding: '6px 12px', 
+                padding: '8px 16px', 
                 fontSize: '0.8rem', 
                 borderRadius: '8px', 
                 display: 'flex', 
@@ -1116,14 +1110,14 @@ export default function Dashboard({
               title="Excel (CSV) Olarak İndir"
             >
               <Download size={14} />
-              <span style={{ fontFamily: 'Outfit, sans-serif' }}>Excel</span>
+              <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Excel</span>
             </button>
             <button 
               type="button"
               className="btn btn-secondary" 
               onClick={handlePrint}
               style={{ 
-                padding: '6px 12px', 
+                padding: '8px 16px', 
                 fontSize: '0.8rem', 
                 borderRadius: '8px', 
                 display: 'flex', 
@@ -1134,7 +1128,7 @@ export default function Dashboard({
               title="Yazdır / PDF Kaydet"
             >
               <Printer size={14} />
-              <span style={{ fontFamily: 'Outfit, sans-serif' }}>Yazdır (PDF)</span>
+              <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Yazdır (PDF)</span>
             </button>
           </div>
         </div>
@@ -1276,19 +1270,19 @@ export default function Dashboard({
             className="excel-table"
             style={{ 
               width: '100%', 
-              minWidth: `${Math.round(600 * zoomScale)}px`, 
+              minWidth: '100%', 
               tableLayout: 'fixed' 
             }}
           >
             <thead>
               <tr style={{ background: '#090d16' }}>
-                <th style={{ width: `${Math.round(150 * zoomScale)}px`, padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
+                <th style={{ width: '28%', padding: `${Math.round(10 * zoomScale)}px ${Math.round(12 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                   Saat & Tarih
                 </th>
-                <th style={{ width: `${Math.round(180 * zoomScale)}px`, padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
+                <th style={{ width: '32%', padding: `${Math.round(10 * zoomScale)}px ${Math.round(12 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                   Kategori
                 </th>
-                <th style={{ padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
+                <th style={{ width: '40%', padding: `${Math.round(10 * zoomScale)}px ${Math.round(12 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                   Alt Kategori
                 </th>
               </tr>
@@ -1334,7 +1328,7 @@ export default function Dashboard({
                     <td 
                       className="excel-cell-capsule"
                       style={{ 
-                        padding: `${Math.round(12 * zoomScale)}px ${Math.round(16 * zoomScale)}px`, 
+                        padding: `${Math.round(10 * zoomScale)}px ${Math.round(12 * zoomScale)}px`, 
                         fontSize: `${0.85 * zoomScale}rem`, 
                         fontWeight: '700', 
                         color: 'var(--color-text-primary)'
@@ -1375,7 +1369,7 @@ export default function Dashboard({
                     </td>
 
                     {/* 3. Alt Kategori */}
-                    <td className="excel-cell-capsule" style={{ padding: `${Math.round(8 * zoomScale)}px ${Math.round(16 * zoomScale)}px` }}>
+                    <td className="excel-cell-capsule" style={{ padding: `${Math.round(8 * zoomScale)}px ${Math.round(12 * zoomScale)}px` }}>
                       {log ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: `${Math.round(2 * zoomScale)}px`, opacity: isFilteredOut ? 0.15 : 1, transition: 'all 0.15s ease' }}>
                           <span style={{ fontSize: `${0.85 * zoomScale}rem`, fontWeight: '700', color: '#fff' }}>

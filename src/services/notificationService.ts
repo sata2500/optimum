@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { storageService } from './storageService';
 import { parseTimeToMinutes } from '../utils/timeUtils';
+import { playNotificationSound } from '../utils/audio';
 
 function isTimeInActiveRange(timeMinutes: number, startMin: number, endMin: number): boolean {
   if (endMin >= startMin) {
@@ -222,6 +223,8 @@ export const notificationService = {
       const dateStr = nextSlot.toISOString().split('T')[0];
 
       try {
+        const settingsObj = storageService.getSettings();
+        playNotificationSound(settingsObj.notificationSound || 'modern');
         let sent = false;
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then(reg => {

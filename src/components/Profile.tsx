@@ -12,9 +12,10 @@ interface ProfileProps {
   logs: TimeLog[];
   user: any;
   onLogout: () => void;
+  onBackToDashboard?: () => void;
 }
 
-export default function Profile({ categories, logs, user, onLogout }: ProfileProps) {
+export default function Profile({ categories, logs, user, onLogout, onBackToDashboard }: ProfileProps) {
   const toast = useToast();
   const settings = useMemo(() => storageService.getSettings(), []);
 
@@ -185,6 +186,27 @@ export default function Profile({ categories, logs, user, onLogout }: ProfilePro
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
+      {onBackToDashboard && (
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            onClick={onBackToDashboard}
+            style={{ 
+              padding: '6px 14px', 
+              fontSize: '0.82rem', 
+              borderRadius: '8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}
+          >
+            ← Zaman Paneline Dön
+          </button>
+        </div>
+      )}
+
       {/* 1. Header Profile Box */}
       <div 
         className="glass-panel" 

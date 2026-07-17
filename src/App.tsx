@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Settings as SettingsIcon, BarChart3, Timer, CloudSync, User } from 'lucide-react';
+import { LayoutDashboard, Settings as SettingsIcon, BarChart3, Timer, CloudSync } from 'lucide-react';
 import { storageService } from './services/storageService';
 import type { Category, TimeLog, AppSettings } from './services/storageService';
 import { notificationService } from './services/notificationService';
@@ -11,6 +11,7 @@ import Settings from './components/Settings';
 import Analytics from './components/Analytics';
 import Pomodoro from './components/Pomodoro';
 import Profile from './components/Profile';
+import { usePomodoro } from './hooks/usePomodoro';
 
 type Tab = 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings';
 
@@ -22,6 +23,9 @@ export default function App() {
   const [pendingLog, setPendingLog] = useState<{ slot: string; date: string } | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'pending'>('synced');
   
+  // Initialize background Pomodoro timer hook
+  const pomodoro = usePomodoro(settings.notificationSound || 'modern');
+
   // Supabase User State
   const [user, setUser] = useState<any>(null);
 
@@ -56,20 +60,26 @@ export default function App() {
     setSyncStatus('synced');
   };
 
-  // Sync on user login/auth change
+  // Sync on user login/auth change + Periodic background sync
   useEffect(() => {
-    if (user) {
-      triggerSync(user);
-      
-      // Auto-set profile name from Google meta
-      const currentSettings = storageService.getSettings();
-      const googleName = user.user_metadata?.full_name;
-      if (googleName && (!currentSettings.userName || currentSettings.userName === 'Kullanıcı')) {
-        const updated = { ...currentSettings, userName: googleName };
-        storageService.saveSettings(updated);
-        setSettings(updated);
-      }
+    if (!user) return;
+
+    triggerSync(user);
+    
+    // Auto-set profile name from Google meta
+    const currentSettings = storageService.getSettings();
+    const googleName = user.user_metadata?.full_name;
+    if (googleName && (!currentSettings.userName || currentSettings.userName === 'Kullanıcı')) {
+      const updated = { ...currentSettings, userName: googleName };
+      storageService.saveSettings(updated);
+      setSettings(updated);
     }
+
+    const intervalId = setInterval(() => {
+      triggerSync(user);
+    }, 30000);
+
+    return () => clearInterval(intervalId);
   }, [user]);
 
   useEffect(() => {
@@ -164,7 +174,15 @@ export default function App() {
     }
   };
 
-  const handleResetAll = () => {
+  const handleResetAll = async () => {
+    if (user && supabase) {
+      try {
+        await storageService.clearAllLogsFromCloud(user.id);
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error('Failed to clear cloud logs during reset:', err);
+      }
+    }
     storageService.resetAll();
     setCategories(storageService.getCategories());
     setLogs(storageService.getLogs());
@@ -201,7 +219,6 @@ export default function App() {
     { key: 'dashboard', label: 'Panel',    icon: LayoutDashboard },
     { key: 'pomodoro',  label: 'Pomodoro', icon: Timer           },
     { key: 'analytics', label: 'Analiz',   icon: BarChart3       },
-    { key: 'profile',   label: 'Profil',   icon: User            },
     { key: 'settings',  label: 'Ayarlar',  icon: SettingsIcon    },
   ];
 
@@ -252,7 +269,7 @@ export default function App() {
             onNavigateToTab={(tab) => setActiveTab(tab)}
           />
         )}
-        {activeTab === 'pomodoro' && <Pomodoro />}
+        {activeTab === 'pomodoro' && <Pomodoro pomodoroState={pomodoro} />}
         {activeTab === 'analytics' && (
           <Analytics categories={categories} logs={logs} />
         )}
@@ -262,6 +279,7 @@ export default function App() {
             logs={logs}
             user={user}
             onLogout={handleLogout}
+            onBackToDashboard={() => setActiveTab('dashboard')}
           />
         )}
         {activeTab === 'settings' && (
