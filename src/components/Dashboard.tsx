@@ -190,7 +190,6 @@ export default function Dashboard({
         if (m % settings.intervalMinutes !== 0) continue;
 
         if (isTimeInActiveRange(timeMin, startMin, endMin)) {
-          const slotStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
           const dateStr = past.toISOString().split('T')[0];
 
           const hasLog = logs.some(l => {
@@ -201,6 +200,10 @@ export default function Dashboard({
             return timeMin >= startMin && timeMin < endMin;
           });
           if (!hasLog) {
+            const endIntervalMin = timeMin + settings.intervalMinutes;
+            const eh = Math.floor((endIntervalMin % 1440) / 60);
+            const em = (endIntervalMin % 1440) % 60;
+            const slotStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
             missed.push({ slot: slotStr, date: dateStr });
           }
         }
@@ -340,7 +343,12 @@ export default function Dashboard({
       }
     }
     // Reverse sorting: Oldest first (Today on left)
-    return dates.sort((a, b) => a.getTime() - b.getTime());
+    const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
+    
+    // Filter out future dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return sorted.filter(d => d.getTime() <= today.getTime());
   };
 
   const getGridIntervalMinutes = (): number => {
@@ -351,7 +359,8 @@ export default function Dashboard({
   };
 
   const datesToRender = getDatesToRender();
-  const timeSlots = generateSlots(settings.startHour, settings.endHour, getGridIntervalMinutes());
+  const rawSlots = generateSlots(settings.startHour, settings.endHour, getGridIntervalMinutes());
+  const timeSlots = rawSlots.slice(1);
 
   // Navigate anchor date
   const handleNavigateAnchor = (direction: 'prev' | 'next') => {
@@ -364,6 +373,27 @@ export default function Dashboard({
       newAnchor.setMonth(currentAnchorDate.getMonth() + (direction === 'next' ? 1 : -1));
     }
     setCurrentAnchorDate(newAnchor);
+  };
+
+  const isNextPeriodFuture = (): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (viewMode === 'daily') {
+      return currentAnchorDate >= today;
+    } else if (viewMode === 'weekly') {
+      const anchor = new Date(currentAnchorDate);
+      const day = anchor.getDay();
+      const diff = anchor.getDate() - day + (day === 0 ? 0 : 7); // Next Sunday
+      const nextSunday = new Date(anchor.setDate(diff));
+      nextSunday.setHours(0, 0, 0, 0);
+      return nextSunday >= today;
+    } else if (viewMode === 'monthly') {
+      const lastDayOfMonth = new Date(currentAnchorDate.getFullYear(), currentAnchorDate.getMonth() + 1, 0);
+      lastDayOfMonth.setHours(0, 0, 0, 0);
+      return lastDayOfMonth >= today;
+    }
+    return false;
   };
 
   const handleJumpToToday = () => {
@@ -413,9 +443,25 @@ export default function Dashboard({
   }, [logs, settings.intervalMinutes]);
 
   // Cell Interaction
-  const getLogForSlot = useCallback((dateStr: string, slotStr: string): TimeLog | undefined => {
-    return logsMap.get(`${dateStr}_${slotStr}`);
-  }, [logsMap]);
+  const getLogForCell = useCallback((dateStr: string, cellSlotStr: string): TimeLog | undefined => {
+    const endMin = parseTimeToMinutes(cellSlotStr);
+    const step = getGridIntervalMinutes();
+    let startMin = endMin - step;
+    let targetDateStr = dateStr;
+    
+    if (startMin < 0) {
+      startMin += 1440;
+      const dateObj = new Date(dateStr);
+      dateObj.setDate(dateObj.getDate() - 1);
+      targetDateStr = dateObj.toISOString().split('T')[0];
+    }
+    
+    const h = Math.floor(startMin / 60);
+    const m = startMin % 60;
+    const startSlotStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    
+    return logsMap.get(`${targetDateStr}_${startSlotStr}`);
+  }, [logsMap, settings.intervalMinutes]);
 
   const handleCellClick = (slot: string, date: string, existingLog: TimeLog | null) => {
     setActiveCell({ slot, date });
@@ -434,9 +480,25 @@ export default function Dashboard({
   const handleSelectActivity = async (activity: { id: string; code: string; name: string }, category: Category) => {
     if (!activeCell) return;
 
+    // Calculate backward start slot and date
+    const endMin = parseTimeToMinutes(activeCell.slot);
+    let startMin = endMin - selectedDuration;
+    let logDate = activeCell.date;
+
+    if (startMin < 0) {
+      startMin += 1440;
+      const dateObj = new Date(activeCell.date);
+      dateObj.setDate(dateObj.getDate() - 1);
+      logDate = dateObj.toISOString().split('T')[0];
+    }
+
+    const h = Math.floor(startMin / 60);
+    const m = startMin % 60;
+    const logSlot = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
     await onLogAdd({
-      date: activeCell.date,
-      timeSlot: activeCell.slot,
+      date: logDate,
+      timeSlot: logSlot,
       activityId: activity.id,
       activityCode: activity.code,
       activityName: activity.name,
@@ -451,7 +513,7 @@ export default function Dashboard({
       const nextIdx = currentMissedIndex + 1;
       setCurrentMissedIndex(nextIdx);
       setActiveCell({ slot: missedSlots[nextIdx].slot, date: missedSlots[nextIdx].date });
-      setSelectedLog(getLogForSlot(missedSlots[nextIdx].date, missedSlots[nextIdx].slot) || null);
+      setSelectedLog(getLogForCell(missedSlots[nextIdx].date, missedSlots[nextIdx].slot) || null);
       setNotes('');
     } else {
       setShowLogModal(false);
@@ -530,6 +592,18 @@ export default function Dashboard({
   };
 
 
+
+  const startSlotStr = useMemo(() => {
+    if (!activeCell) return '';
+    const endMin = parseTimeToMinutes(activeCell.slot);
+    let startMin = endMin - selectedDuration;
+    if (startMin < 0) {
+      startMin += 1440;
+    }
+    const h = Math.floor(startMin / 60);
+    const m = startMin % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }, [activeCell?.slot, selectedDuration]);
 
   // Filter activities
   const filteredActivities: { category: Category; activity: any }[] = [];
@@ -979,7 +1053,17 @@ export default function Dashboard({
           </div>
 
           {viewMode !== 'custom' && (
-            <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('next')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => handleNavigateAnchor('next')} 
+              disabled={isNextPeriodFuture()}
+              style={{ 
+                padding: '6px 10px', 
+                borderRadius: '8px',
+                opacity: isNextPeriodFuture() ? 0.5 : 1,
+                cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
+              }}
+            >
               <ChevronRight size={14} />
             </button>
           )}
@@ -1001,8 +1085,8 @@ export default function Dashboard({
               <input 
                 type="range" 
                 min={1} 
-                max={365} 
-                value={customDaysCount} 
+                max={90} 
+                value={customDaysCount > 90 ? 90 : customDaysCount} 
                 onChange={(e) => setCustomDaysCount(Number(e.target.value))}
                 style={{ 
                   flex: 1, 
@@ -1014,7 +1098,7 @@ export default function Dashboard({
                   accentColor: 'var(--color-primary)'
                 }}
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>365 G</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>90 G</span>
             </div>
           </div>
         )}
@@ -1113,12 +1197,20 @@ export default function Dashboard({
               </tr>
             </thead>
             <tbody>
-              {timeSlots.map((slot) => {
-                const dateStr = formatDateStr(currentAnchorDate);
-                const log = getLogForSlot(dateStr, slot);
-                const isFuture = currentAnchorDate.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
-                const dayOfWeekStr = DAYS_SHORT_TR[currentAnchorDate.getDay() === 0 ? 6 : currentAnchorDate.getDay() - 1];
-                const displayDate = `${currentAnchorDate.getDate()}/${currentAnchorDate.getMonth() + 1}`;
+              {(() => {
+                const isTodayAnchor = formatDateStr(currentAnchorDate) === formatDateStr(new Date());
+                const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                const displayedSlots = timeSlots.filter(slot => {
+                  if (!isTodayAnchor) return true;
+                  return parseTimeToMinutes(slot) <= nowMin;
+                });
+
+                return displayedSlots.map((slot) => {
+                  const dateStr = formatDateStr(currentAnchorDate);
+                  const log = getLogForCell(dateStr, slot);
+                  const isFuture = currentAnchorDate.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
+                  const dayOfWeekStr = DAYS_SHORT_TR[currentAnchorDate.getDay() === 0 ? 6 : currentAnchorDate.getDay() - 1];
+                  const displayDate = `${currentAnchorDate.getDate()}/${currentAnchorDate.getMonth() + 1}`;
 
                 // Filter visibility check
                 const isFilteredOut = log && (
@@ -1221,8 +1313,9 @@ export default function Dashboard({
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
+              });
+            })()}
+          </tbody>
           </table>
         ) : (
           <table 
@@ -1319,7 +1412,7 @@ export default function Dashboard({
                 {/* 7 or more Days columns cells */}
                 {datesToRender.map((day, dayIdx) => {
                   const dateStr = formatDateStr(day);
-                  const log = getLogForSlot(dateStr, slot);
+                  const log = getLogForCell(dateStr, slot);
                   const isFuture = day.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
                   
                   // Filter visibility check
@@ -1439,7 +1532,7 @@ export default function Dashboard({
                   {currentMissedIndex > -1 ? `Kaçırılan Dilim (${currentMissedIndex + 1}/${missedSlots.length})` : (selectedLog ? 'Kayıt Düzenle' : 'Dilim Doldur')}
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-                  Tarih: <strong>{activeCell.date}</strong> | Saat Dilimi: <strong>{activeCell.slot}</strong>
+                  Tarih: <strong>{activeCell.date}</strong> | Aralık: <strong>{startSlotStr} - {activeCell.slot}</strong> ({selectedDuration} dk geçmişe yönelik)
                 </p>
               </div>
               <button 
