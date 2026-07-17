@@ -249,6 +249,7 @@ export default function App() {
             pendingLog={pendingLog}
             clearPendingLog={() => setPendingLog(null)}
             user={user}
+            onNavigateToTab={(tab) => setActiveTab(tab)}
           />
         )}
         {activeTab === 'pomodoro' && <Pomodoro />}

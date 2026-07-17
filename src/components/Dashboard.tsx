@@ -17,6 +17,7 @@ interface DashboardProps {
   pendingLog: { slot: string; date: string } | null;
   clearPendingLog: () => void;
   user: any;
+  onNavigateToTab?: (tab: 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings') => void;
 }
 
 
@@ -32,12 +33,12 @@ export default function Dashboard({
   pendingLog,
   clearPendingLog,
   user,
+  onNavigateToTab,
 }: DashboardProps) {
 
   const toast = useToast();
 
   // Excel Grid Configuration & Filters
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
   const [currentAnchorDate, setCurrentAnchorDate] = useState<Date>(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -49,8 +50,28 @@ export default function Dashboard({
   const [selectedGridCatIds, setSelectedGridCatIds] = useState<Set<string>>(new Set());
   const [selectedGridActIds, setSelectedGridActIds] = useState<Set<string>>(new Set());
 
-  // Custom Range Slider Days Count
-  const [customDaysCount, setCustomDaysCount] = useState<number>(30);
+  // Custom Range Slider Days Count (starts with 1 - Daily list view)
+  const [customDaysCount, setCustomDaysCount] = useState<number>(1);
+  const [localDaysCount, setLocalDaysCount] = useState<number>(1);
+
+  const debounceTimeoutRef = useRef<any>(null);
+  const debouncedSetDaysCount = useCallback((val: number) => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      setCustomDaysCount(val);
+    }, 120);
+  }, []);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Cell logging modal state
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
@@ -311,45 +332,15 @@ export default function Dashboard({
   // Date range calculations
   const getDatesToRender = (): Date[] => {
     const dates: Date[] = [];
-    if (viewMode === 'daily') {
-      const d = new Date(currentAnchorDate);
-      d.setHours(0, 0, 0, 0);
+    const anchor = new Date(currentAnchorDate);
+    anchor.setHours(0, 0, 0, 0);
+    
+    for (let i = 0; i < customDaysCount; i++) {
+      const d = new Date(anchor);
+      d.setDate(anchor.getDate() - i);
       dates.push(d);
-    } else if (viewMode === 'weekly') {
-      // Find Monday of anchor week
-      const anchor = new Date(currentAnchorDate);
-      const day = anchor.getDay();
-      const diff = anchor.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(anchor.setDate(diff));
-      monday.setHours(0, 0, 0, 0);
-
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        dates.push(d);
-      }
-    } else if (viewMode === 'monthly') {
-      // Find 1st of anchor month
-      const start = new Date(currentAnchorDate.getFullYear(), currentAnchorDate.getMonth(), 1);
-      const end = new Date(currentAnchorDate.getFullYear(), currentAnchorDate.getMonth() + 1, 0);
-      
-      let curr = new Date(start);
-      while (curr <= end) {
-        dates.push(new Date(curr));
-        curr.setDate(curr.getDate() + 1);
-      }
-    } else {
-      // Custom date range based on customDaysCount slider backwards from anchor date
-      const anchor = new Date(currentAnchorDate);
-      anchor.setHours(0, 0, 0, 0);
-      
-      for (let i = 0; i < customDaysCount; i++) {
-        const d = new Date(anchor);
-        d.setDate(anchor.getDate() - i);
-        dates.push(d);
-      }
     }
-    // Reverse sorting: Oldest first (Today on left)
+    
     const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
     
     // Filter out future dates
@@ -372,35 +363,15 @@ export default function Dashboard({
   // Navigate anchor date
   const handleNavigateAnchor = (direction: 'prev' | 'next') => {
     const newAnchor = new Date(currentAnchorDate);
-    if (viewMode === 'daily') {
-      newAnchor.setDate(currentAnchorDate.getDate() + (direction === 'next' ? 1 : -1));
-    } else if (viewMode === 'weekly') {
-      newAnchor.setDate(currentAnchorDate.getDate() + (direction === 'next' ? 7 : -7));
-    } else if (viewMode === 'monthly') {
-      newAnchor.setMonth(currentAnchorDate.getMonth() + (direction === 'next' ? 1 : -1));
-    }
+    const daysShift = customDaysCount;
+    newAnchor.setDate(currentAnchorDate.getDate() + (direction === 'next' ? daysShift : -daysShift));
     setCurrentAnchorDate(newAnchor);
   };
 
   const isNextPeriodFuture = (): boolean => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    if (viewMode === 'daily') {
-      return currentAnchorDate >= today;
-    } else if (viewMode === 'weekly') {
-      const anchor = new Date(currentAnchorDate);
-      const day = anchor.getDay();
-      const diff = anchor.getDate() - day + (day === 0 ? 0 : 7); // Next Sunday
-      const nextSunday = new Date(anchor.setDate(diff));
-      nextSunday.setHours(0, 0, 0, 0);
-      return nextSunday >= today;
-    } else if (viewMode === 'monthly') {
-      const lastDayOfMonth = new Date(currentAnchorDate.getFullYear(), currentAnchorDate.getMonth() + 1, 0);
-      lastDayOfMonth.setHours(0, 0, 0, 0);
-      return lastDayOfMonth >= today;
-    }
-    return false;
+    return currentAnchorDate >= today;
   };
 
   const handleJumpToToday = () => {
@@ -414,20 +385,15 @@ export default function Dashboard({
   };
 
   const formatPeriodLabel = (): string => {
-    if (viewMode === 'daily') {
+    if (datesToRender.length === 0) return 'Tarih seçilmedi';
+    
+    if (customDaysCount === 1) {
       return currentAnchorDate.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    } else if (viewMode === 'weekly') {
-      const start = datesToRender[0]; // Oldest (Monday)
-      const end = datesToRender[datesToRender.length - 1]; // Newest (Sunday)
-      return `${start.getDate()} ${start.toLocaleString('tr-TR', { month: 'short' })} - ${end.getDate()} ${end.toLocaleString('tr-TR', { month: 'short' })} ${end.getFullYear()}`;
-    } else if (viewMode === 'monthly') {
-      return currentAnchorDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
-    } else {
-      if (datesToRender.length === 0) return 'Tarih seçilmedi';
-      const oldest = datesToRender[0];
-      const newest = datesToRender[datesToRender.length - 1];
-      return `${oldest.getDate()} ${oldest.toLocaleString('tr-TR', { month: 'short' })} - ${newest.getDate()} ${newest.toLocaleString('tr-TR', { month: 'short' })} ${newest.getFullYear()} (${customDaysCount} Gün)`;
     }
+    
+    const oldest = datesToRender[0];
+    const newest = datesToRender[datesToRender.length - 1];
+    return `${oldest.getDate()} ${oldest.toLocaleString('tr-TR', { month: 'short' })} - ${newest.getDate()} ${newest.toLocaleString('tr-TR', { month: 'short' })} ${newest.getFullYear()} (${customDaysCount} Gün)`;
   };
 
   // Pre-index logs by date and slot for O(1) rendering performance
@@ -770,17 +736,20 @@ export default function Dashboard({
           <img 
             src={user.user_metadata.avatar_url} 
             alt="Avatar" 
+            onClick={() => onNavigateToTab?.('profile')}
             style={{ 
               width: '38px', 
               height: '38px', 
               borderRadius: '50%', 
               border: '2px solid var(--color-primary)', 
               boxShadow: '0 0 10px var(--color-primary-glow)',
-              objectFit: 'cover'
+              objectFit: 'cover',
+              cursor: 'pointer'
             }} 
           />
         ) : (
           <div 
+            onClick={() => onNavigateToTab?.('profile')}
             style={{ 
               width: '38px', 
               height: '38px', 
@@ -794,7 +763,8 @@ export default function Dashboard({
               fontWeight: '800', 
               fontSize: '0.95rem',
               boxShadow: '0 0 10px rgba(6, 182, 212, 0.15)',
-              fontFamily: 'Outfit, sans-serif'
+              fontFamily: 'Outfit, sans-serif',
+              cursor: 'pointer'
             }}
           >
             {(settings.userName || 'K')[0].toUpperCase()}
@@ -903,21 +873,7 @@ export default function Dashboard({
         })()}
       </div>
 
-      {/* Segmented Period Selector (Mockup Style) */}
-      <div className="segmented-control" style={{ margin: '4px 0' }}>
-        {(['daily', 'weekly', 'monthly', 'custom'] as const).map(mode => (
-          <button
-            key={mode}
-            className={`segment-btn ${viewMode === mode ? 'segment-btn-active' : ''}`}
-            onClick={() => {
-              setViewMode(mode);
-              handleJumpToToday();
-            }}
-          >
-            {mode === 'daily' ? 'Günlük' : mode === 'weekly' ? 'Haftalık' : mode === 'monthly' ? 'Aylık' : 'Özel'}
-          </button>
-        ))}
-      </div>
+
 
 
 
@@ -1122,29 +1078,25 @@ export default function Dashboard({
         {/* Date navigators & actions */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {viewMode !== 'custom' && (
-              <>
-                <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
-                  <ChevronLeft size={14} />
-                </button>
-                <button className="btn btn-secondary" onClick={handleJumpToToday} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
-                  Bugün
-                </button>
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => handleNavigateAnchor('next')} 
-                  disabled={isNextPeriodFuture()}
-                  style={{ 
-                    padding: '6px 10px', 
-                    borderRadius: '8px',
-                    opacity: isNextPeriodFuture() ? 0.5 : 1,
-                    cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </>
-            )}
+            <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '6px 10px', borderRadius: '8px' }}>
+              <ChevronLeft size={14} />
+            </button>
+            <button className="btn btn-secondary" onClick={handleJumpToToday} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
+              Bugün
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => handleNavigateAnchor('next')} 
+              disabled={isNextPeriodFuture()}
+              style={{ 
+                padding: '6px 10px', 
+                borderRadius: '8px',
+                opacity: isNextPeriodFuture() ? 0.5 : 1,
+                cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1188,38 +1140,40 @@ export default function Dashboard({
         </div>
 
         {/* Custom date range slider (V4) */}
-        {viewMode === 'custom' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '220px', flex: 1, padding: '4px 8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                Gösterilecek Gün Sayısı:
-              </span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: '800', fontFamily: 'Outfit' }}>
-                {customDaysCount} Gün
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>1 G</span>
-              <input 
-                type="range" 
-                min={1} 
-                max={90} 
-                value={customDaysCount > 90 ? 90 : customDaysCount} 
-                onChange={(e) => setCustomDaysCount(Number(e.target.value))}
-                style={{ 
-                  flex: 1, 
-                  height: '6px', 
-                  borderRadius: '3px',
-                  background: 'rgba(255,255,255,0.1)',
-                  outline: 'none',
-                  cursor: 'pointer',
-                  accentColor: 'var(--color-primary)'
-                }}
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>90 G</span>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '220px', flex: 1, padding: '4px 8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+              Zaman Aralığı (Gün Sayısı):
+            </span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: '800', fontFamily: 'Outfit' }}>
+              {localDaysCount} Gün
+            </span>
           </div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>1 G</span>
+            <input 
+              type="range" 
+              min={1} 
+              max={60} 
+              value={localDaysCount} 
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setLocalDaysCount(val);
+                debouncedSetDaysCount(val);
+              }}
+              style={{ 
+                flex: 1, 
+                height: '6px', 
+                borderRadius: '3px',
+                background: 'rgba(255,255,255,0.1)',
+                outline: 'none',
+                cursor: 'pointer',
+                accentColor: 'var(--color-primary)'
+              }}
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>60 G</span>
+          </div>
+        </div>
 
         {/* Zoom & Fullscreen Controls (V9 & V11) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', flexWrap: 'wrap' }}>
@@ -1310,11 +1264,14 @@ export default function Dashboard({
           padding: '12px', 
           overflowX: 'auto', 
           width: '100%',
-          maxHeight: '70vh',
-          overflowY: 'auto'
+          height: '480px',
+          minHeight: '220px',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          resize: 'vertical'
         }}
       >
-        {viewMode === 'daily' ? (
+        {customDaysCount === 1 ? (
           <table 
             className="excel-table"
             style={{ 
