@@ -123,6 +123,87 @@ export default function Dashboard({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const [tableHeight, setTableHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('optimum_table_height');
+      return saved ? parseInt(saved, 10) : 480;
+    } catch {
+      return 480;
+    }
+  });
+
+  const isResizingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(480);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const deltaY = e.clientY - startYRef.current;
+    const newHeight = Math.max(220, Math.min(1000, startHeightRef.current + deltaY));
+    setTableHeight(newHeight);
+    try {
+      localStorage.setItem('optimum_table_height', String(newHeight));
+    } catch {}
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isResizingRef.current = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [handleMouseMove]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    startYRef.current = e.clientY;
+    startHeightRef.current = tableHeight;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isResizingRef.current) return;
+    e.preventDefault();
+    const deltaY = e.touches[0].clientY - startYRef.current;
+    const newHeight = Math.max(220, Math.min(1000, startHeightRef.current + deltaY));
+    setTableHeight(newHeight);
+    try {
+      localStorage.setItem('optimum_table_height', String(newHeight));
+    } catch {}
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    isResizingRef.current = false;
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+    document.body.style.userSelect = '';
+  }, [handleTouchMove]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    isResizingRef.current = true;
+    startYRef.current = e.touches[0].clientY;
+    startHeightRef.current = tableHeight;
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+    document.body.style.userSelect = 'none';
+  };
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
   const currentZoomScaleRef = useRef<number>(zoomScale);
 
   useEffect(() => {
@@ -1144,11 +1225,12 @@ export default function Dashboard({
           padding: '12px', 
           overflowX: 'auto', 
           width: '100%',
-          height: '480px',
+          height: `${tableHeight}px`,
           minHeight: '220px',
           maxHeight: '85vh',
           overflowY: 'auto',
-          resize: 'vertical'
+          borderRadius: '20px 20px 0 0',
+          borderBottom: 'none'
         }}
       >
         {customDaysCount === 1 ? (
@@ -1475,6 +1557,41 @@ export default function Dashboard({
         </table>
         )}
       </div>
+
+      {/* Vertical Resize Handle Bar (Only visible when NOT in fullscreen) */}
+      {!isFullscreen && (
+        <div 
+          style={{
+            width: '100%',
+            height: '10px',
+            cursor: 'row-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 100%)',
+            border: '1px solid var(--color-border)',
+            borderTop: 'none',
+            borderRadius: '0 0 20px 20px',
+            userSelect: 'none',
+            touchAction: 'none'
+          }}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+        >
+          {/* Visual handle pill */}
+          <div 
+            style={{ 
+              width: '40px', 
+              height: '4px', 
+              background: 'rgba(255, 255, 255, 0.2)', 
+              borderRadius: '2px',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'; }}
+          />
+        </div>
+      )}
       </div>
 
       <style>{`
