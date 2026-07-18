@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   Plus, Trash2, Edit3, X, Save, AlertTriangle, Settings as SettingsIcon,
   FolderKanban, Download, Upload, Check, Bell, ShieldAlert,
-  Clock, Zap
+  Zap
 } from 'lucide-react';
 import type { Category, Activity, AppSettings } from '../services/storageService';
 import type { User } from '@supabase/supabase-js';
@@ -11,7 +11,6 @@ import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
-import Auth from './Auth';
 import { playNotificationSound } from '../utils/audio';
 
 interface SettingsProps {
@@ -23,7 +22,6 @@ interface SettingsProps {
   onResetAll: () => void;
   onLoadDemoData: () => void;
   user: User | null;
-  onLogout: () => void;
 }
 
 type SubTab = 'general' | 'categories' | 'backup';
@@ -73,15 +71,16 @@ export default function Settings({
   onResetAll,
   onLoadDemoData,
   user,
-  onLogout,
 }: SettingsProps) {
   const toast = useToast();
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('general');
   const [confirmState, setConfirmState] = useState<ConfirmState>(INITIAL_CONFIRM);
 
   // --- GENERAL SETTINGS STATES ---
-  const [formUserName, setFormUserName] = useState<string>(settings.userName || 'Kullanıcı');
   const [formInterval, setFormInterval] = useState<number>(settings.intervalMinutes);
+  const [formIntervalCustomSelected, setFormIntervalCustomSelected] = useState<boolean>(
+    !INTERVAL_OPTIONS.some(o => o.value === settings.intervalMinutes)
+  );
   const [formStart, setFormStart] = useState<string>(settings.startHour);
   const [formEnd, setFormEnd] = useState<string>(settings.endHour);
   const [formNotifications, setFormNotifications] = useState<boolean>(settings.notificationsEnabled);
@@ -94,32 +93,22 @@ export default function Settings({
   const [formCategoryTargets, setFormCategoryTargets] = useState<{ [catId: string]: number }>(settings.categoryTargets || {});
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isAppInstalled, setIsAppInstalled] = useState<boolean>(false);
 
   useEffect(() => {
-    const checkPerm = async () => {
-      const status = await notificationService.getPermissionStatus();
-      setNotifPermission(status);
-    };
-    checkPerm();
-
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
     };
 
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
-      setIsAppInstalled(true);
       toast.success('Optimum cihazınıza başarıyla yüklendi! Ana ekrandan hızlıca erişebilirsiniz.');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
-      setIsAppInstalled(true);
-    }
+
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -127,18 +116,75 @@ export default function Settings({
     };
   }, []);
 
-  useEffect(() => {
-    if (user && user.user_metadata?.full_name) {
-      setFormUserName(user.user_metadata.full_name);
-    }
-  }, [user]);
-
   const handleInstallApp = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to install prompt: ${outcome}`);
-    setDeferredPrompt(null);
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
+  const getPermissionLabel = () => {
+    if (notifPermission === 'granted') return 'İzin Verildi';
+    if (notifPermission === 'denied') return 'Engellendi';
+    return 'İzin Gerekli';
+  };
+
+  const permBadge = () => {
+    const color = notifPermission === 'granted' ? '#22c55e' : notifPermission === 'denied' ? '#ef4444' : '#eab308';
+    const bg = notifPermission === 'granted' ? 'rgba(34,197,94,0.1)' : notifPermission === 'denied' ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.1)';
+    const border = notifPermission === 'granted' ? '1px solid rgba(34,197,94,0.3)' : notifPermission === 'denied' ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(234,179,8,0.3)';
+    return (
+      <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '10px', background: bg, border, color, fontWeight: '700' }}>
+        {getPermissionLabel()}
+      </span>
+    );
+  };
+
+  const requestAndVerifyPermission = async (): Promise<boolean> => {
+    const status = await notificationService.getPermissionStatus();
+    if (status === 'granted') {
+      setNotifPermission('granted');
+      return true;
+    }
+    const granted = await notificationService.requestPermission();
+    setNotifPermission(granted ? 'granted' : 'denied');
+    return granted;
+  };
+
+  useEffect(() => {
+    notificationService.getPermissionStatus().then(status => {
+      setNotifPermission(status);
+    });
+  }, []);
+
+  const handleSaveGeneralSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingGeneral(true);
+    let isNotifEnabled = formNotifications;
+
+    if (formNotifications) {
+      const granted = await requestAndVerifyPermission();
+      if (!granted) {
+        isNotifEnabled = false;
+        setFormNotifications(false);
+      }
+    }
+
+    onSettingsChange({
+      intervalMinutes: formInterval,
+      startHour: formStart,
+      endHour: formEnd,
+      notificationsEnabled: isNotifEnabled,
+      userName: settings.userName || 'Kullanıcı',
+      dailyProductiveTargetHours: formDailyProductiveTargetHours,
+      categoryTargets: formCategoryTargets,
+      notificationSound: formSound,
+    });
+
+    setIsSavingGeneral(false);
+    toast.success('Genel ayarlar başarıyla kaydedildi!');
   };
 
   const handleUpdateCategoryTarget = (catId: string, hours: number) => {
@@ -176,52 +222,7 @@ export default function Settings({
 
   const closeConfirm = () => setConfirmState(INITIAL_CONFIRM);
 
-  // ── GENERAL SETTINGS ────────────────────────────────────────────────
-  const requestAndVerifyPermission = async (): Promise<boolean> => {
-    if (!('Notification' in window)) {
-      toast.error('Tarayıcınız bildirim desteklemiyor. Lütfen localhost veya HTTPS bağlantısı kullanın.');
-      return false;
-    }
-    if (Notification.permission === 'denied') {
-      toast.error('Bildirim izni engellenmiş. Tarayıcı ayarlarından kilit simgesine tıklayarak izni açın.');
-      return false;
-    }
-    const granted = await notificationService.requestPermission();
-    const status = await notificationService.getPermissionStatus();
-    setNotifPermission(status);
-    if (!granted) {
-      toast.warning('Bildirim izni reddedildi. Hatırlatıcılar devre dışı kalacak.');
-    }
-    return granted;
-  };
 
-  const handleSaveGeneralSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingGeneral(true);
-    let isNotifEnabled = formNotifications;
-
-    if (formNotifications) {
-      const granted = await requestAndVerifyPermission();
-      if (!granted) {
-        isNotifEnabled = false;
-        setFormNotifications(false);
-      }
-    }
-
-    onSettingsChange({
-      intervalMinutes: formInterval,
-      startHour: formStart,
-      endHour: formEnd,
-      notificationsEnabled: isNotifEnabled,
-      userName: formUserName.trim() || 'Kullanıcı',
-      dailyProductiveTargetHours: formDailyProductiveTargetHours,
-      categoryTargets: formCategoryTargets,
-      notificationSound: formSound,
-    });
-
-    setIsSavingGeneral(false);
-    toast.success('Genel ayarlar başarıyla kaydedildi!');
-  };
 
   const handleTestNotification = async () => {
     const granted = await requestAndVerifyPermission();
@@ -465,12 +466,7 @@ export default function Settings({
     );
   };
 
-  // ── PERMISSION BADGE ────────────────────────────────────────────────
-  const permBadge = () => {
-    if (notifPermission === 'granted') return <span className="perm-badge perm-badge-granted">✓ İzin Verildi</span>;
-    if (notifPermission === 'denied') return <span className="perm-badge perm-badge-denied">✗ Engellendi</span>;
-    return <span className="perm-badge perm-badge-default">⚠ İzin Eksik</span>;
-  };
+
 
   // ── RENDER ───────────────────────────────────────────────────────────
   return (
@@ -514,57 +510,17 @@ export default function Settings({
       {/* ── PANEL 1: GENERAL SETTINGS ─────────────────────────────── */}
       {activeSubTab === 'general' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <Auth user={user} onLogout={onLogout} />
           
-          <form onSubmit={handleSaveGeneralSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-          {/* Profile Settings */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid #38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: '#38bdf8', fontWeight: '800', fontSize: '0.95rem', fontFamily: 'Outfit' }}>
-                  {(formUserName || 'K')[0].toUpperCase()}
-                </span>
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0 }}>Profil Ayarları</h3>
-                  {isAppInstalled && (
-                    <span style={{ fontSize: '0.65rem', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', padding: '2px 6px', borderRadius: '8px', fontWeight: 'bold', display: 'inline-block', lineHeight: '1' }}>
-                      PWA Yüklü
-                    </span>
-                  )}
-                </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-                  Uygulamadaki isminiz ve avatarınız
-                </p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                Kullanıcı Adı
-              </label>
-              <input
-                type="text"
-                value={formUserName}
-                onChange={e => setFormUserName(e.target.value)}
-                placeholder="İsminiz..."
-                maxLength={25}
-                style={{ width: '100%' }}
-              />
-            </div>
-          </div>
-
           {/* Install PWA Prompt */}
           {deferredPrompt && (
-            <div className="glass-panel animate-scale-in" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--color-primary-glow)', background: 'rgba(139,92,246,0.03)' }}>
+            <div className="glass-panel animate-scale-in" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px', border: '1px solid var(--color-primary-glow)', background: 'rgba(139,92,246,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(139, 92, 246, 0.1)', border: '1px solid var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Download size={18} color="var(--color-primary)" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Optimum'u Yükleyin</h3>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0 }}>Optimum'u Yükleyin</h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px', margin: 0 }}>
                     Çevrimdışı erişim ve hızlı kullanım için ana ekrana ekleyin
                   </p>
                 </div>
@@ -573,7 +529,7 @@ export default function Settings({
                 type="button"
                 className="btn btn-primary"
                 onClick={handleInstallApp}
-                style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '12px' }}
+                style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: '10px', fontSize: '0.82rem' }}
               >
                 <Download size={14} />
                 Uygulamayı Yükle
@@ -581,230 +537,265 @@ export default function Settings({
             </div>
           )}
 
-          {/* Interval Cards */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Clock size={18} color="var(--color-primary)" />
-              <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Zaman Dilimi Aralığı</h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                  Her kaç dakikada bir kayıt isteyeceğini seçin
-                </p>
-              </div>
-            </div>
+          <form onSubmit={handleSaveGeneralSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            <div className="interval-cards">
-              {INTERVAL_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`interval-card ${formInterval === opt.value ? 'interval-card-active' : ''}`}
-                  onClick={() => setFormInterval(opt.value)}
-                >
-                  <span className="interval-value">{opt.label}</span>
-                  <span className="interval-unit">{opt.sub}</span>
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <label style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                Özel Süre Belirle (Dakika)
-              </label>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input 
-                  type="number"
-                  min={1}
-                  max={1440}
-                  value={formInterval}
-                  onChange={(e) => {
-                    const val = Math.max(1, Number(e.target.value));
-                    setFormInterval(val);
-                  }}
-                  style={{
-                    width: '100px',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid var(--color-border)',
-                    color: '#fff',
-                    fontSize: '0.85rem',
-                    outline: 'none'
-                  }}
-                />
-                <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-                  Özel dakika aralıklarıyla bildirim gönderilir. (Şu anki değer: {formInterval} dakika)
-                </span>
+            {/* Hatırlatıcı & Zaman Ayarları */}
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Bell size={18} color="var(--color-primary)" />
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0 }}>Hatırlatıcı & Zaman Ayarları</h3>
               </div>
-            </div>
-          </div>
 
-          {/* Time Range */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Zap size={18} color="var(--color-primary)" />
-              <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Aktif Takip Saatleri</h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                  Bu aralık dışında bildirim gönderilmez
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                  Başlangıç Saati
-                </label>
-                <input
-                  type="time"
-                  value={formStart}
-                  onChange={e => setFormStart(e.target.value)}
-                  style={{ colorScheme: 'dark' }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                  Bitiş Saati
-                </label>
-                <input
-                  type="time"
-                  value={formEnd}
-                  onChange={e => setFormEnd(e.target.value)}
-                  style={{ colorScheme: 'dark' }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Daily Productivity Targets */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Zap size={18} color="var(--color-primary)" />
-              <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Üretkenlik Hedefleri</h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                  Günlük hedef çalışma sürelerinizi saat bazında ayarlayın
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: '600' }}>Günlük Toplam Üretken Süre Hedefi</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="number"
-                    min="1"
-                    max="24"
-                    step="0.5"
-                    value={formDailyProductiveTargetHours}
-                    onChange={e => setFormDailyProductiveTargetHours(parseFloat(e.target.value) || 4)}
-                    style={{ width: '70px', padding: '6px', textAlign: 'center' }}
-                  />
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Saat</span>
+              {/* Toggle Row */}
+              <div className="settings-row" style={{ paddingBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="settings-row-label">
+                  <strong>Hatırlatıcı Bildirimler</strong>
+                  <span>Her zaman diliminde size hatırlatıcı gönderilir</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {permBadge()}
+                  <label className="toggle-switch" aria-label="Bildirimleri aç/kapat">
+                    <input
+                      type="checkbox"
+                      checked={formNotifications}
+                      onChange={e => setFormNotifications(e.target.checked)}
+                    />
+                    <span className="toggle-track" />
+                  </label>
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-text-secondary)', display: 'block' }}>Kategori Hedefleri (Saat)</span>
-                {categories.map(cat => (
-                  <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: cat.color }} />
-                      <span style={{ fontSize: '0.82rem' }}>{cat.name}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <input
+              {/* Active Hours Sub-section */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--color-text-primary)', margin: 0 }}>
+                  Aktif Takip Saatleri
+                </h4>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Bu zaman dilimi dışındaki saatlerde size hatırlatıcı gönderilmez.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                      Başlangıç Saati
+                    </label>
+                    <input
+                      type="time"
+                      value={formStart}
+                      onChange={e => setFormStart(e.target.value)}
+                      style={{ 
+                        colorScheme: 'dark',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--color-border)',
+                        color: '#fff',
+                        fontSize: '0.85rem'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                      Bitiş Saati
+                    </label>
+                    <input
+                      type="time"
+                      value={formEnd}
+                      onChange={e => setFormEnd(e.target.value)}
+                      style={{ 
+                        colorScheme: 'dark',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--color-border)',
+                        color: '#fff',
+                        fontSize: '0.85rem'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Time Interval Sub-section */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--color-text-primary)', fontWeight: '700' }}>
+                    Zaman Dilimi Aralığı (Sıklık)
+                  </label>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0 }}>
+                    Her kaç dakikada bir kayıt girmek istediğinizi seçin.
+                  </p>
+                  <select
+                    value={formIntervalCustomSelected ? 'custom' : formInterval}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'custom') {
+                        setFormIntervalCustomSelected(true);
+                      } else {
+                        setFormIntervalCustomSelected(false);
+                        setFormInterval(Number(val));
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--color-border)',
+                      color: '#fff',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      marginTop: '6px'
+                    }}
+                  >
+                    {INTERVAL_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value} style={{ background: '#0f172a', color: '#fff' }}>
+                        {opt.label} ({opt.sub})
+                      </option>
+                    ))}
+                    <option value="custom" style={{ background: '#0f172a', color: '#fff' }}>
+                      Özel Süre Belirle...
+                    </option>
+                  </select>
+                </div>
+
+                {formIntervalCustomSelected && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                      Özel Süre (Dakika)
+                    </label>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input 
                         type="number"
-                        min="0"
-                        max="24"
-                        step="0.5"
-                        value={formCategoryTargets[cat.id] ?? 0}
-                        onChange={e => handleUpdateCategoryTarget(cat.id, parseFloat(e.target.value) || 0)}
-                        style={{ width: '70px', padding: '6px', textAlign: 'center' }}
+                        min={1}
+                        max={1440}
+                        value={formInterval}
+                        onChange={(e) => {
+                          const val = Math.max(1, Number(e.target.value));
+                          setFormInterval(val);
+                        }}
+                        style={{
+                          width: '100px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid var(--color-border)',
+                          color: '#fff',
+                          fontSize: '0.85rem',
+                          outline: 'none'
+                        }}
                       />
-                      <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Saat</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                        Özel dakika aralıklarıyla hatırlatıcı gönderilir.
+                      </span>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          </div>
 
-          {/* Notifications */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Bell size={18} color="var(--color-primary)" />
-              <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit' }}>Hatırlatıcı Bildirimler</h3>
-            </div>
+              {/* Install App Promotion for Advanced Notifications */}
+              <div 
+                style={{ 
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.03) 100%)', 
+                  border: '1px solid rgba(99, 102, 241, 0.15)', 
+                  borderRadius: '12px', 
+                  padding: '16px', 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Zap size={15} color="var(--color-primary)" />
+                  <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>Gelişmiş Bildirim Özellikleri</span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                  Kendi <strong>ses kayıtlarınızı</strong> bildirim melodisi olarak kullanmak, özel melodileri etkinleştirmek ve tarayıcınız kapalıyken dahi <strong>%100 zamanında, kesintisiz çevrimdışı bildirimler</strong> almak için Optimum Android uygulamasını indirin.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
+                    Çok Yakında Android Google Play'de! 📱
+                  </span>
+                </div>
+              </div>
 
-            <div className="settings-row">
-              <div className="settings-row-label">
-                <strong>Bildirimleri Etkinleştir</strong>
-                <span>Her zaman diliminde size hatırlatıcı gönderilir</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {permBadge()}
-                <label className="toggle-switch" aria-label="Bildirimleri aç/kapat">
-                  <input
-                    type="checkbox"
-                    checked={formNotifications}
-                    onChange={e => setFormNotifications(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-            </div>
-
-            {/* Install App Promotion for Advanced Notifications */}
-            <div 
-              style={{ 
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.03) 100%)', 
-                border: '1px solid rgba(99, 102, 241, 0.15)', 
-                borderRadius: '12px', 
-                padding: '16px', 
-                marginTop: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Zap size={15} color="var(--color-primary)" />
-                <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>Gelişmiş Bildirim Özellikleri</span>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                Kendi <strong>ses kayıtlarınızı</strong> bildirim melodisi olarak kullanmak, özel melodileri etkinleştirmek ve tarayıcınız kapalıyken dahi <strong>%100 zamanında, kesintisiz çevrimdışı bildirimler</strong> almak için Optimum Android uygulamasını indirin.
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                <span style={{ fontSize: '0.72rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
-                  Çok Yakında Android Google Play'de! 📱
-                </span>
-              </div>
+              {/* Test Notification Button */}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleTestNotification}
+                style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: '10px', fontSize: '0.85rem', border: '1px solid var(--color-primary-glow)', color: 'var(--color-primary)' }}
+              >
+                <Bell size={14} />
+                Test Bildirimi Gönder
+              </button>
             </div>
 
+            {/* Üretkenlik Hedefleri */}
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Zap size={18} color="var(--color-primary)" />
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0 }}>Üretkenlik Hedefleri</h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '2px', margin: 0 }}>
+                    Günlük hedef çalışma sürelerinizi saat bazında ayarlayın
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: '600' }}>Günlük Toplam Üretken Süre Hedefi</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="24"
+                      step="0.5"
+                      value={formDailyProductiveTargetHours}
+                      onChange={e => setFormDailyProductiveTargetHours(parseFloat(e.target.value) || 4)}
+                      style={{ width: '70px', padding: '6px', textAlign: 'center' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Saat</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-text-secondary)', display: 'block' }}>Kategori Hedefleri (Saat)</span>
+                  {categories.map(cat => (
+                    <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: cat.color }} />
+                        <span style={{ fontSize: '0.82rem' }}>{cat.name}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          value={formCategoryTargets[cat.id] ?? 0}
+                          onChange={e => handleUpdateCategoryTarget(cat.id, parseFloat(e.target.value) || 0)}
+                          style={{ width: '70px', padding: '6px', textAlign: 'center' }}
+                        />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Saat</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Save Button */}
             <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleTestNotification}
-              style={{ alignSelf: 'flex-start', padding: '8px 16px', borderRadius: '10px', fontSize: '0.85rem', border: '1px solid var(--color-primary-glow)', color: 'var(--color-primary)', marginTop: '8px' }}
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSavingGeneral}
+              style={{ alignSelf: 'flex-start', padding: '12px 28px' }}
             >
-              <Bell size={14} />
-              Test Bildirimi Gönder
+              <Save size={16} />
+              {isSavingGeneral ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
             </button>
-          </div>
-
-          {/* Save Button */}
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={isSavingGeneral}
-            style={{ alignSelf: 'flex-start', padding: '12px 28px' }}
-          >
-            <Save size={16} />
-            {isSavingGeneral ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
-          </button>
           </form>
         </div>
       )}

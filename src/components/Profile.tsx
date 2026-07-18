@@ -1,12 +1,12 @@
-import { useMemo } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { useMemo, useState } from 'react';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import { storageService } from '../services/storageService';
-import type { Category, TimeLog } from '../services/storageService';
+import type { Category, TimeLog, AppSettings } from '../services/storageService';
 import { calculateStreak, isLogProductive } from '../utils/productivityUtils';
 
 import { 
-  Award, Flame, TrendingUp, User as UserIcon, Mail, ShieldCheck, Trophy, Zap
+  Award, Flame, TrendingUp, User as UserIcon, Mail, Trophy, Zap, LogOut, CheckCircle, ShieldAlert
 } from 'lucide-react';
 
 import { useToast } from './Toast';
@@ -17,11 +17,50 @@ interface ProfileProps {
   user: User | null;
   onLogout: () => void;
   onBackToDashboard?: () => void;
+  onSettingsChange?: (newSettings: AppSettings) => void;
 }
 
-export default function Profile({ categories, logs, user, onLogout, onBackToDashboard }: ProfileProps) {
+export default function Profile({ categories, logs, user, onLogout, onBackToDashboard, onSettingsChange }: ProfileProps) {
   const toast = useToast();
   const settings = useMemo(() => storageService.getSettings(), []);
+
+  const [username, setUsername] = useState(settings.userName || 'Kullanıcı');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleLogin = async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      toast.error('Supabase bağlantısı henüz yapılandırılmadı.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Login error:', err.message);
+      toast.error(`Giriş başlatılamadı: ${err.message}`);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleSaveUsername = () => {
+    const trimmed = username.trim();
+    if (!trimmed) {
+      toast.error('Kullanıcı adı boş olamaz.');
+      return;
+    }
+    const newSettings = { ...settings, userName: trimmed };
+    storageService.saveSettings(newSettings);
+    onSettingsChange?.(newSettings);
+    toast.success('Kullanıcı adı başarıyla güncellendi.');
+  };
 
   // --- 1. STREAK CALCULATION LOGIC ---
   const currentStreak = useMemo(() => {
@@ -173,6 +212,16 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
   const avatarUrl = user?.user_metadata?.avatar_url;
   const name = user?.user_metadata?.full_name || settings.userName || 'Kullanıcı';
 
+  // Google Icon SVG
+  const GoogleIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+    </svg>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
@@ -198,63 +247,83 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
       )}
 
       {/* 1. Header Profile Box */}
-      <div 
-        className="glass-panel" 
-        style={{ 
-          padding: '30px 24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '20px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Dynamic Avatar */}
-          {avatarUrl ? (
-            <img 
-              src={avatarUrl} 
-              alt="Avatar" 
-              style={{ 
-                width: '80px', 
-                height: '80px', 
-                borderRadius: '50%', 
-                border: '3px solid var(--color-primary)', 
-                boxShadow: '0 0 15px var(--color-primary-glow)',
-                objectFit: 'cover'
-              }} 
-            />
-          ) : (
-            <div 
-              style={{ 
-                width: '80px', 
-                height: '80px', 
-                borderRadius: '50%', 
-                background: 'linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%)', 
-                color: '#fff', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: '800', 
-                fontSize: '2rem',
-                border: '3px solid rgba(255,255,255,0.1)',
-                fontFamily: 'Outfit, sans-serif'
-              }}
-            >
-              {(name || 'K')[0].toUpperCase()}
-            </div>
-          )}
+      {!isSupabaseConfigured ? (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '20px 24px', 
+            border: '1px solid rgba(234, 179, 8, 0.25)', 
+            background: 'rgba(234, 179, 8, 0.02)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#eab308' }}>
+            <ShieldAlert size={18} />
+            <strong style={{ fontSize: '0.95rem', fontFamily: 'Outfit' }}>Bulut Senkronizasyonu Pasif (Yerel Mod)</strong>
+          </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', lineHeight: '1.4', margin: 0 }}>
+            Bulut yedekleme ve Google ile Giriş için Supabase bilgilerini girmeniz gerekir. 
+            Vercel panelinde veya projenin <code>.env</code> dosyasında <code>VITE_SUPABASE_URL</code> ve <code>VITE_SUPABASE_ANON_KEY</code> tanımlandığında bu özellik otomatik aktif olacaktır.
+          </p>
+        </div>
+      ) : user ? (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '24px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '20px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            {avatarUrl ? (
+              <img 
+                src={avatarUrl} 
+                alt="Avatar" 
+                style={{ 
+                  width: '64px', 
+                  height: '64px', 
+                  borderRadius: '50%', 
+                  border: '2px solid var(--color-primary)', 
+                  boxShadow: '0 0 12px var(--color-primary-glow)',
+                  objectFit: 'cover'
+                }} 
+              />
+            ) : (
+              <div 
+                style={{ 
+                  width: '64px', 
+                  height: '64px', 
+                  borderRadius: '50%', 
+                  background: 'linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%)', 
+                  color: '#fff', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  fontWeight: '800', 
+                  fontSize: '1.8rem',
+                  border: '2px solid rgba(255,255,255,0.1)',
+                  fontFamily: 'Outfit, sans-serif'
+                }}
+              >
+                {(name || 'K')[0].toUpperCase()}
+              </div>
+            )}
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '1.6rem', fontWeight: '800', fontFamily: 'Outfit', margin: 0 }}>{name}</h1>
-              {user && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: '800', fontFamily: 'Outfit', margin: 0 }}>{name}</h2>
                 <span 
                   style={{ 
                     background: 'rgba(34,197,94,0.1)', 
                     border: '1px solid rgba(34,197,94,0.3)', 
                     color: '#22c55e', 
-                    fontSize: '0.7rem', 
+                    fontSize: '0.65rem', 
                     padding: '2px 8px', 
                     borderRadius: '10px', 
                     fontWeight: '700',
@@ -262,32 +331,22 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
                     alignItems: 'center',
                     gap: '4px'
                   }}
+                  title="Tüm kayıtlarınız buluta güvenle yedekleniyor."
                 >
-                  <ShieldCheck size={12} />
+                  <CheckCircle size={10} />
                   Bulut Yedek Aktif
                 </span>
-              )}
+              </div>
+              
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <Mail size={14} />
+                {user.email}
+              </p>
             </div>
-            
-            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {user ? (
-                <>
-                  <Mail size={14} />
-                  {user.email}
-                </>
-              ) : (
-                <>
-                  <UserIcon size={14} />
-                  Yerel Profil (Çevrimdışı Çalışma)
-
-                </>
-              )}
-            </p>
           </div>
-        </div>
 
-        {user && (
           <button 
+            type="button"
             onClick={handleLogout} 
             className="btn btn-secondary" 
             style={{ 
@@ -295,12 +354,120 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
               borderRadius: '12px', 
               fontSize: '0.85rem', 
               borderColor: 'rgba(239, 68, 68, 0.25)', 
-              color: '#ef4444' 
+              color: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
           >
+            <LogOut size={14} />
             Oturumu Kapat
           </button>
-        )}
+        </div>
+      ) : (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '24px', 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '16px'
+          }}
+        >
+          <div>
+            <strong style={{ fontSize: '0.95rem', color: '#fff', display: 'block', fontFamily: 'Outfit' }}>Bulut Yedekleme & Senkronizasyon</strong>
+            <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+              Verilerinizi buluta yedeklemek ve kaybolmasını önlemek için Google hesabınızla giriş yapın.
+            </span>
+          </div>
+
+          <button 
+            type="button"
+            onClick={handleLogin} 
+            disabled={isLoggingIn}
+            className="btn btn-secondary" 
+            style={{ 
+              padding: '10px 20px', 
+              borderRadius: '12px', 
+              fontSize: '0.85rem', 
+              background: '#fff', 
+              color: '#000', 
+              border: 'none',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: isLoggingIn ? 0.7 : 1,
+              cursor: isLoggingIn ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <GoogleIcon />
+            {isLoggingIn ? 'Giriş yapılıyor...' : 'Google ile Giriş Yap'}
+          </button>
+        </div>
+      )}
+
+      {/* 1b. Profil Düzenleme / Kullanıcı Adı Kartı */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          padding: '20px 24px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '14px'
+        }}
+      >
+        <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <UserIcon size={16} color="var(--color-primary)" />
+          Kullanıcı Bilgileri
+        </h3>
+        
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '200px' }}>
+            <label style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+              Kullanıcı Adı
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="İsminiz..."
+              maxLength={25}
+              style={{ 
+                padding: '8px 12px', 
+                borderRadius: '8px', 
+                background: 'rgba(255,255,255,0.02)', 
+                border: '1px solid var(--color-border)', 
+                color: '#fff',
+                fontSize: '0.85rem',
+                outline: 'none'
+              }}
+            />
+          </div>
+          <button 
+            type="button"
+            onClick={handleSaveUsername}
+            style={{ 
+              padding: '9px 18px', 
+              borderRadius: '8px', 
+              fontSize: '0.82rem', 
+              fontWeight: 'bold',
+              background: 'var(--color-primary)',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              height: '38px',
+              transition: 'background 0.2s'
+            }}
+          >
+            Kaydet
+          </button>
+        </div>
       </div>
 
       {/* 2. Gamification Widget Cards */}

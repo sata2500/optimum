@@ -297,6 +297,7 @@ export default function App() {
             user={user}
             onLogout={handleLogout}
             onBackToDashboard={() => setActiveTab('dashboard')}
+            onSettingsChange={handleSettingsChange}
           />
         )}
         {activeTab === 'settings' && (
@@ -309,7 +310,6 @@ export default function App() {
             onResetAll={handleResetAll}
             onLoadDemoData={handleLoadDemoData}
             user={user}
-            onLogout={handleLogout}
           />
         )}
 
