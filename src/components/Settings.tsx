@@ -85,7 +85,7 @@ export default function Settings({
   const [formStart, setFormStart] = useState<string>(settings.startHour);
   const [formEnd, setFormEnd] = useState<string>(settings.endHour);
   const [formNotifications, setFormNotifications] = useState<boolean>(settings.notificationsEnabled);
-  const [formSound, setFormSound] = useState<'modern' | 'classic' | 'soft' | 'silent'>(settings.notificationSound || 'modern');
+  const [formSound] = useState<'modern' | 'classic' | 'soft' | 'silent'>(settings.notificationSound || 'modern');
   const [notifPermission, setNotifPermission] = useState<string>('default');
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
   
@@ -757,35 +757,30 @@ export default function Settings({
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                Bildirim Sesi Melodisi
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', marginTop: '4px' }}>
-                {(['modern', 'classic', 'soft', 'silent'] as const).map(snd => (
-                  <button
-                    key={snd}
-                    type="button"
-                    onClick={() => {
-                      setFormSound(snd);
-                      playNotificationSound(snd);
-                    }}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      fontSize: '0.78rem',
-                      background: formSound === snd ? 'var(--color-primary)' : 'rgba(255,255,255,0.02)',
-                      border: formSound === snd ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      textAlign: 'center',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {snd === 'modern' ? '✨ Modern' : snd === 'classic' ? '🔔 Klasik Zil' : snd === 'soft' ? '🎵 Yumuşak' : '🔇 Sessiz'}
-                  </button>
-                ))}
+            {/* Install App Promotion for Advanced Notifications */}
+            <div 
+              style={{ 
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.03) 100%)', 
+                border: '1px solid rgba(99, 102, 241, 0.15)', 
+                borderRadius: '12px', 
+                padding: '16px', 
+                marginTop: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={15} color="var(--color-primary)" />
+                <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>Gelişmiş Bildirim Özellikleri</span>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                Kendi <strong>ses kayıtlarınızı</strong> bildirim melodisi olarak kullanmak, özel melodileri etkinleştirmek ve tarayıcınız kapalıyken dahi <strong>%100 zamanında, kesintisiz çevrimdışı bildirimler</strong> almak için Optimum Android uygulamasını indirin.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
+                  Çok Yakında Android Google Play'de! 📱
+                </span>
               </div>
             </div>
 
