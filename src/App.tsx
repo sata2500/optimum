@@ -5,6 +5,8 @@ import type { Category, TimeLog, AppSettings } from './services/storageService';
 import { notificationService } from './services/notificationService';
 import { useToast } from './components/Toast';
 import { supabase } from './services/supabaseClient';
+import type { User } from '@supabase/supabase-js';
+
 import OptimumLogo from './components/OptimumLogo';
 import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
@@ -27,7 +29,8 @@ export default function App() {
   const pomodoro = usePomodoro(settings.notificationSound || 'modern');
 
   // Supabase User State
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+
 
   const toast = useToast();
 
@@ -192,6 +195,13 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  const handleLoadDemoData = () => {
+    storageService.generateMockData();
+    setLogs(storageService.getLogs());
+    toast.success('Örnek (demo) veriler başarıyla yüklendi!');
+  };
+
+
   const handleLogout = () => {
     setUser(null);
     setLogs(storageService.getLogs());
@@ -276,6 +286,7 @@ export default function App() {
           <Analytics 
             categories={categories} 
             logs={logs} 
+            settings={settings}
             onNavigateToTab={(tab) => setActiveTab(tab)} 
           />
         )}
@@ -296,10 +307,12 @@ export default function App() {
             onSettingsChange={handleSettingsChange}
             onBackupImport={handleBackupImport}
             onResetAll={handleResetAll}
+            onLoadDemoData={handleLoadDemoData}
             user={user}
             onLogout={handleLogout}
           />
         )}
+
       </main>
 
       <nav className="bottom-nav">

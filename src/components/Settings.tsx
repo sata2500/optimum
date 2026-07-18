@@ -5,7 +5,9 @@ import {
   Clock, Zap
 } from 'lucide-react';
 import type { Category, Activity, AppSettings } from '../services/storageService';
+import type { User } from '@supabase/supabase-js';
 import { storageService } from '../services/storageService';
+
 import { notificationService } from '../services/notificationService';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,7 +21,8 @@ interface SettingsProps {
   onSettingsChange: (newSettings: AppSettings) => void;
   onBackupImport: () => void;
   onResetAll: () => void;
-  user: any;
+  onLoadDemoData: () => void;
+  user: User | null;
   onLogout: () => void;
 }
 
@@ -68,6 +71,7 @@ export default function Settings({
   onSettingsChange,
   onBackupImport,
   onResetAll,
+  onLoadDemoData,
   user,
   onLogout,
 }: SettingsProps) {
@@ -1038,6 +1042,29 @@ export default function Settings({
                 Hesabı ve Tüm Verileri Sil
               </button>
             </div>
+
+            {/* Load Demo Data (Dev Only) */}
+            {import.meta.env.DEV && (
+              <div style={{ border: '1px solid rgba(56,189,248,0.2)', borderRadius: '16px', padding: '20px', background: 'rgba(56,189,248,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Zap size={16} color="#38bdf8" />
+                  </div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: '700', fontFamily: 'Outfit', color: '#38bdf8' }}>Demo Veri Yükle</h4>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', flex: 1 }}>
+                  Geliştirme ve test süreçleri için 9 günlük örnek zaman takibi verisi oluşturur.
+                </p>
+                <button
+                  className="btn btn-secondary"
+                  onClick={onLoadDemoData}
+                  style={{ fontSize: '0.82rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' }}
+                >
+                  <Zap size={13} />
+                  Demo Veriyi Yükle
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
+import type { User } from '@supabase/supabase-js';
 import { storageService } from '../services/storageService';
 import type { Category, TimeLog } from '../services/storageService';
-import { calculateStreak } from '../utils/streakUtils';
+import { calculateStreak, isLogProductive } from '../utils/productivityUtils';
+
 import { 
-  Award, Flame, TrendingUp, User, Mail, ShieldCheck, Trophy 
+  Award, Flame, TrendingUp, User as UserIcon, Mail, ShieldCheck, Trophy 
 } from 'lucide-react';
 
 import { useToast } from './Toast';
@@ -12,7 +14,7 @@ import { useToast } from './Toast';
 interface ProfileProps {
   categories: Category[];
   logs: TimeLog[];
-  user: any;
+  user: User | null;
   onLogout: () => void;
   onBackToDashboard?: () => void;
 }
@@ -56,8 +58,7 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
       const mins = l.durationMinutes || intervalMinutes;
       totalMin += mins;
       
-      const cat = categories.find(c => c.id === l.categoryId);
-      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
+      const isProductive = isLogProductive(l, categories);
       if (isProductive) {
         prodMin += mins;
       }
@@ -70,6 +71,7 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
         dailyMinutes[l.date].productive += mins;
       }
     });
+
 
     const hasHighEfficiencyDay = Object.values(dailyMinutes).some(day => {
       if (day.total === 0) return false;
@@ -248,8 +250,9 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
                 </>
               ) : (
                 <>
-                  <User size={14} />
+                  <UserIcon size={14} />
                   Yerel Profil (Çevrimdışı Çalışma)
+
                 </>
               )}
             </p>

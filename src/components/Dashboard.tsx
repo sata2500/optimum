@@ -4,10 +4,13 @@ import {
   Flame, Zap, Download, Printer
 } from 'lucide-react';
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
+import type { User } from '@supabase/supabase-js';
+
 import { notificationService } from '../services/notificationService';
 import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
-import { calculateStreak } from '../utils/streakUtils';
+import { calculateStreak, isLogProductive } from '../utils/productivityUtils';
 import { useToast } from './Toast';
+
 
 interface DashboardProps {
   categories: Category[];
@@ -17,7 +20,8 @@ interface DashboardProps {
   onLogDelete: (id: string) => Promise<void>;
   pendingLog: { slot: string; date: string } | null;
   clearPendingLog: () => void;
-  user: any;
+  user: User | null;
+
   onNavigateToTab?: (tab: 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings') => void;
 }
 
@@ -262,11 +266,11 @@ export default function Dashboard({
     const categoryProdMins: { [catId: string]: number } = {};
 
     todayLogs.forEach(l => {
-      const cat = categories.find(c => c.id === l.categoryId);
-      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
+      const isProductive = isLogProductive(l, categories);
       const mins = l.durationMinutes || intervalMinutes;
       if (isProductive) {
         totalProdMins += mins;
+
         categoryProdMins[l.categoryId] = (categoryProdMins[l.categoryId] || 0) + mins;
       }
     });

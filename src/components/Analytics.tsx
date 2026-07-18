@@ -2,21 +2,28 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { 
   BarChart3, ListFilter, Download, Printer, TrendingUp, Sparkles, Plus, Database
 } from 'lucide-react';
-import type { Category, TimeLog } from '../services/storageService';
-import { storageService } from '../services/storageService';
+import type { Category, TimeLog, AppSettings } from '../services/storageService';
+
+import { isLogProductive } from '../utils/productivityUtils';
+
+
 
 interface AnalyticsProps {
   categories: Category[];
   logs: TimeLog[];
+  settings: AppSettings;
   onNavigateToTab?: (tab: 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings') => void;
 }
 
-export default function Analytics({ categories, logs, onNavigateToTab }: AnalyticsProps) {
+export default function Analytics({ categories, logs, settings, onNavigateToTab }: AnalyticsProps) {
+
 
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
+  const [visibleHistoryCount, setVisibleHistoryCount] = useState<number>(50);
   
   // Dynamic Slider configuration (1-60 Days)
   const [daysCount, setDaysCount] = useState<number>(30);
+
   const [localDaysCount, setLocalDaysCount] = useState<number>(30);
 
   const debounceTimeoutRef = useRef<any>(null);
@@ -49,16 +56,14 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
   const { productivityScore, productiveHours, totalHours } = useMemo(() => {
     if (rangeLogs.length === 0) return { productivityScore: 0, productiveHours: 0, totalHours: 0 };
     
-    const intervalMinutes = storageService.getSettings().intervalMinutes;
+    const intervalMinutes = settings.intervalMinutes;
     let totalMinutes = 0;
     let productiveMinutes = 0;
     
     rangeLogs.forEach(l => {
       const mins = l.durationMinutes || intervalMinutes;
       totalMinutes += mins;
-      const cat = categories.find(c => c.id === l.categoryId);
-      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
-      if (isProductive) {
+      if (isLogProductive(l, categories)) {
         productiveMinutes += mins;
       }
     });
@@ -68,7 +73,7 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
     const productivityScore = totalMinutes > 0 ? Math.round((productiveMinutes / totalMinutes) * 100) : 0;
 
     return { productivityScore, productiveHours, totalHours };
-  }, [rangeLogs, categories]);
+  }, [rangeLogs, categories, settings]);
 
   // ── 2. CATEGORY SHARE BREAKDOWN (DONUT) ───────────────────────────
   const categoryShares = useMemo(() => {
@@ -78,7 +83,7 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
       shares[cat.id] = { category: cat, minutes: 0, hours: 0, percentage: 0 };
     });
 
-    const intervalMinutes = storageService.getSettings().intervalMinutes;
+    const intervalMinutes = settings.intervalMinutes;
     let totalMinutes = 0;
 
     rangeLogs.forEach(log => {
@@ -88,6 +93,7 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
         totalMinutes += mins;
       }
     });
+
 
     if (totalMinutes === 0) return [];
 
@@ -104,7 +110,7 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
   // ── 3. WEEKLY STACKED DAILY CHART (DYNAMIC DAYS) ────────────────────
   const weeklyStackedData = useMemo(() => {
     const data: { dateLabel: string; displayDate: string; categories: { [catId: string]: number }; totalCount: number }[] = [];
-    const intervalMinutes = storageService.getSettings().intervalMinutes;
+    const intervalMinutes = settings.intervalMinutes;
     
     for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date();
@@ -138,13 +144,13 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
       });
     }
     return data;
-  }, [rangeLogs, categories, daysCount]);
+  }, [rangeLogs, categories, daysCount, settings]);
 
 
   // ── 4. DAILY PRODUCTIVITY TREND (LINE CHART) ───────────────────────
   const dailyTrendData = useMemo(() => {
     const datesList: string[] = [];
-    const intervalMinutes = storageService.getSettings().intervalMinutes;
+    const intervalMinutes = settings.intervalMinutes;
     
     for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date();
@@ -159,21 +165,19 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
       dayLogs.forEach(l => {
         const mins = l.durationMinutes || intervalMinutes;
         totalMin += mins;
-        const cat = categories.find(c => c.id === l.categoryId);
-        const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
-        if (isProductive) prodMin += mins;
+        if (isLogProductive(l, categories)) prodMin += mins;
       });
       
       const score = totalMin > 0 ? Math.round((prodMin / totalMin) * 100) : 0;
       const shortDate = new Date(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
       return { date: dateStr, shortDate, score, hasLogs: dayLogs.length > 0 };
     });
-  }, [logs, categories, daysCount]);
+  }, [logs, categories, daysCount, settings]);
 
   // ── 5. TOP 5 MOST TIMED ACTIVITIES ────────────────────────────────
   const topActivities = useMemo(() => {
     const activitiesMap: { [key: string]: { name: string; code: string; color: string; minutes: number } } = {};
-    const intervalMinutes = storageService.getSettings().intervalMinutes;
+    const intervalMinutes = settings.intervalMinutes;
     
     rangeLogs.forEach(log => {
       const mins = log.durationMinutes || intervalMinutes;
@@ -196,15 +200,19 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
       hours: item.minutes / 60,
       percentOfMax: Math.round((item.minutes / maxMinutes) * 100)
     }));
-  }, [rangeLogs]);
+  }, [rangeLogs, settings]);
 
   // History list filter
-  const displayedHistoryLogs = useMemo(() => {
+  const filteredHistoryLogs = useMemo(() => {
     return rangeLogs
       .filter(log => filterCategoryId === 'all' || log.categoryId === filterCategoryId)
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 50);
+      .sort((a, b) => b.timestamp - a.timestamp);
   }, [rangeLogs, filterCategoryId]);
+
+  const displayedHistoryLogs = useMemo(() => {
+    return filteredHistoryLogs.slice(0, visibleHistoryCount);
+  }, [filteredHistoryLogs, visibleHistoryCount]);
+
 
   // ── CSV EXPORT ─────────────────────────────────────────────────────
   const handleExportCSV = () => {
@@ -212,10 +220,11 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
     
     const headers = 'Tarih;Zaman Dilimi;Kategori;Aktivite Kodu;Aktivite Adı;Süre (Dk);Notlar;Senkronize Durumu\n';
     const rows = rangeLogs.map(l => {
-      const intervalMinutes = storageService.getSettings().intervalMinutes;
+      const intervalMinutes = settings.intervalMinutes;
       const duration = l.durationMinutes || intervalMinutes;
       return `"${l.date}";"${l.timeSlot}";"${l.categoryName}";"${l.activityCode}";"${l.activityName}";${duration};"${l.notes || ''}";"${l.synced ? 'Evet' : 'Hayır'}"`;
     }).join('\n');
+
 
     // UTF-8 BOM so Excel opens special Turkish characters correctly
     const blob = new Blob(['\uFEFF' + headers + rows], { type: 'text/csv;charset=utf-8;' });
@@ -596,7 +605,7 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
                           {categories.map(cat => {
                             const mins = day.categories[cat.id] || 0;
                             if (mins === 0) return null;
-                            const equivSlots = mins / storageService.getSettings().intervalMinutes;
+                            const equivSlots = mins / settings.intervalMinutes;
                             return (
                               <div 
                                 key={cat.id} 
@@ -609,6 +618,7 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
                               />
                             );
                           })}
+
                         </div>
 
                         <span 
@@ -780,54 +790,73 @@ export default function Analytics({ categories, logs, onNavigateToTab }: Analyti
             {/* Logs List scroll container */}
             <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
               {displayedHistoryLogs.length > 0 ? (
-                displayedHistoryLogs.map(log => (
-                  <div 
-                    key={log.id}
-                    style={{
-                      background: 'rgba(255,255,255,0.01)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '12px',
-                      padding: '12px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: '12px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span 
-                        style={{
-                          background: log.categoryColor,
-                          color: '#fff',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontWeight: '800',
-                          fontSize: '0.75rem',
-                          fontFamily: 'Outfit, sans-serif'
-                        }}
-                      >
-                        {log.activityCode}
-                      </span>
-                      <div>
-                        <h4 style={{ fontSize: '0.85rem', fontWeight: '600', margin: 0 }}>{log.activityName}</h4>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{log.categoryName}</span>
-                        {log.notes && (
-                          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '4px', fontStyle: 'italic', margin: '4px 0 0 0' }}>
-                            "{log.notes}"
-                          </p>
-                        )}
+                <>
+                  {displayedHistoryLogs.map(log => (
+                    <div 
+                      key={log.id}
+                      style={{
+                        background: 'rgba(255,255,255,0.01)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '12px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span 
+                          style={{
+                            background: log.categoryColor,
+                            color: '#fff',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontWeight: '800',
+                            fontSize: '0.75rem',
+                            fontFamily: 'Outfit, sans-serif'
+                          }}
+                        >
+                          {log.activityCode}
+                        </span>
+                        <div>
+                          <h4 style={{ fontSize: '0.85rem', fontWeight: '600', margin: 0 }}>{log.activityName}</h4>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{log.categoryName}</span>
+                          {log.notes && (
+                            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '4px', fontStyle: 'italic', margin: '4px 0 0 0' }}>
+                              "{log.notes}"
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600' }}>{log.timeSlot}</span>
-                        <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>{log.date}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600' }}>{log.timeSlot}</span>
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>{log.date}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  
+                  {filteredHistoryLogs.length > visibleHistoryCount && (
+                    <button
+                      onClick={() => setVisibleHistoryCount(prev => prev + 50)}
+                      className="btn btn-secondary no-print"
+                      style={{
+                        padding: '10px',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        marginTop: '6px',
+                        borderRadius: '10px',
+                        width: '100%'
+                      }}
+                    >
+                      Daha Fazla Yükle ({filteredHistoryLogs.length - visibleHistoryCount} Kayıt Kaldı)
+                    </button>
+                  )}
+                </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                   Kayıt bulunamadı.
