@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { 
-  BarChart3, ListFilter, AlertCircle, Download, Printer, TrendingUp, Sparkles
+  BarChart3, ListFilter, Download, Printer, TrendingUp, Sparkles, Plus, Database
 } from 'lucide-react';
 import type { Category, TimeLog } from '../services/storageService';
 import { storageService } from '../services/storageService';
@@ -8,9 +8,11 @@ import { storageService } from '../services/storageService';
 interface AnalyticsProps {
   categories: Category[];
   logs: TimeLog[];
+  onNavigateToTab?: (tab: 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings') => void;
 }
 
-export default function Analytics({ categories, logs }: AnalyticsProps) {
+export default function Analytics({ categories, logs, onNavigateToTab }: AnalyticsProps) {
+
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   
   // Dynamic Slider configuration (1-60 Days)
@@ -99,16 +101,20 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
       .sort((a, b) => b.minutes - a.minutes);
   }, [rangeLogs, categories]);
 
-  // ── 3. WEEKLY STACKED DAILY CHART (LAST 7 DAYS) ────────────────────
+  // ── 3. WEEKLY STACKED DAILY CHART (DYNAMIC DAYS) ────────────────────
   const weeklyStackedData = useMemo(() => {
     const data: { dateLabel: string; displayDate: string; categories: { [catId: string]: number }; totalCount: number }[] = [];
     const intervalMinutes = storageService.getSettings().intervalMinutes;
     
-    for (let i = 6; i >= 0; i--) {
+    for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const displayStr = d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric' });
+      const displayStr = d.toLocaleDateString('tr-TR', { 
+        weekday: daysCount <= 8 ? 'short' : undefined, 
+        day: 'numeric',
+        month: daysCount > 15 ? 'numeric' : 'short'
+      });
       
       const dayLogs = rangeLogs.filter(l => l.date === dateStr);
       
@@ -132,7 +138,8 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
       });
     }
     return data;
-  }, [rangeLogs, categories]);
+  }, [rangeLogs, categories, daysCount]);
+
 
   // ── 4. DAILY PRODUCTIVITY TREND (LINE CHART) ───────────────────────
   const dailyTrendData = useMemo(() => {
@@ -314,23 +321,79 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
 
       {logs.length === 0 ? (
         <div 
-          className="glass-panel" 
+          className="glass-panel animate-scale-in" 
           style={{ 
-            padding: '48px 24px', 
+            padding: '48px 32px', 
             textAlign: 'center', 
-            color: 'var(--color-text-secondary)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '12px'
+            gap: '24px',
+            maxWidth: '560px',
+            margin: '40px auto',
+            borderRadius: '24px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.03))',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
           }}
         >
-          <AlertCircle size={40} color="var(--color-text-muted)" />
+          <div 
+            style={{ 
+              width: '80px', 
+              height: '80px', 
+              borderRadius: '50%', 
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(139, 92, 246, 0.1))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(139, 92, 246, 0.2)'
+            }}
+          >
+            <BarChart3 size={36} style={{ color: '#8b5cf6' }} />
+          </div>
+
           <div>
-            <h3 style={{ color: '#fff', fontSize: '1.15rem', marginBottom: '6px' }}>Analiz Kaydı Bulunmuyor</h3>
-            <p style={{ fontSize: '0.85rem' }}>
-              Grafiklerin ve istatistiklerin görünebilmesi için öncelikle zaman kaydı ekleyin.
+            <h3 style={{ color: '#fff', fontSize: '1.4rem', fontWeight: '800', fontFamily: 'Outfit', marginBottom: '10px', letterSpacing: '-0.02em' }}>
+              Analiz Paneli Hazırlanıyor
+            </h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto' }}>
+              Zaman takibinizi analiz edebilmemiz için sisteme ilk kayıtlarınızı eklemeniz veya örnek verileri yüklemeniz gerekmektedir.
             </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', width: '100%', marginTop: '8px' }}>
+            <button
+              onClick={() => onNavigateToTab?.('dashboard')}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+            >
+              <Plus size={16} />
+              İlk Zaman Kaydını Ekle
+            </button>
+            <button
+              onClick={() => onNavigateToTab?.('settings')}
+              className="btn btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+            >
+              <Database size={16} />
+              Örnek Veri Yükle
+            </button>
           </div>
         </div>
       ) : (
@@ -480,87 +543,90 @@ export default function Analytics({ categories, logs }: AnalyticsProps) {
             </div>
 
             {/* Stacked Daily Bar Chart */}
-            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden' }}>
               <h3 style={{ fontSize: '1.05rem', fontFamily: 'Outfit' }}>Günlük Üretkenlik Trendi ({daysCount} Gün)</h3>
               
-              <div 
-                style={{ 
-                  height: '180px', 
-                  display: 'flex', 
-                  alignItems: 'flex-end', 
-                  justifyContent: 'space-around',
-                  padding: '10px 0 20px 0',
-                  position: 'relative'
-                }}
-              >
-                <div style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-                <div style={{ position: 'absolute', bottom: '60px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-                <div style={{ position: 'absolute', bottom: '100px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-                <div style={{ position: 'absolute', bottom: '140px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+              <div className="pills-scroll-wrapper" style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden', paddingBottom: '8px' }}>
+                <div 
+                  style={{ 
+                    height: '180px', 
+                    display: 'flex', 
+                    alignItems: 'flex-end', 
+                    justifyContent: 'space-around',
+                    padding: '10px 0 20px 0',
+                    position: 'relative',
+                    minWidth: daysCount > 8 ? `${daysCount * 42}px` : '100%'
+                  }}
+                >
+                  <div style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+                  <div style={{ position: 'absolute', bottom: '60px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+                  <div style={{ position: 'absolute', bottom: '100px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+                  <div style={{ position: 'absolute', bottom: '140px', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.05)' }} />
 
-                {weeklyStackedData.map((day, idx) => {
-                  const maxSlotsPerDay = 35;
-                  const totalLogged = day.totalCount;
-                  const scaleFactor = Math.min(130 / maxSlotsPerDay, 130 / (totalLogged || 1));
-                  
-                  return (
-                    <div 
-                      key={idx} 
-                      style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        height: '100%',
-                        justifyContent: 'flex-end',
-                        width: '32px',
-                        zIndex: 2
-                      }}
-                    >
+                  {weeklyStackedData.map((day, idx) => {
+                    const maxSlotsPerDay = 35;
+                    const totalLogged = day.totalCount;
+                    const scaleFactor = Math.min(130 / maxSlotsPerDay, 130 / (totalLogged || 1));
+                    
+                    return (
                       <div 
+                        key={idx} 
                         style={{ 
-                          width: '12px', 
-                          borderRadius: '6px', 
-                          overflow: 'hidden', 
                           display: 'flex', 
-                          flexDirection: 'column-reverse', 
-                          height: `${totalLogged * scaleFactor}px`,
-                          background: 'rgba(255,255,255,0.03)',
-                          transition: 'height 0.3s ease-out'
+                          flexDirection: 'column', 
+                          alignItems: 'center', 
+                          height: '100%',
+                          justifyContent: 'flex-end',
+                          width: '32px',
+                          zIndex: 2
                         }}
                       >
-                        {categories.map(cat => {
-                          const mins = day.categories[cat.id] || 0;
-                          if (mins === 0) return null;
-                          const equivSlots = mins / storageService.getSettings().intervalMinutes;
-                          return (
-                            <div 
-                              key={cat.id} 
-                              style={{ 
-                                height: `${equivSlots * scaleFactor}px`, 
-                                background: cat.color,
-                                width: '100%' 
-                              }}
-                              title={`${cat.name}: ${(mins / 60).toFixed(1)} saat`}
-                            />
-                          );
-                        })}
+                        <div 
+                          style={{ 
+                            width: '12px', 
+                            borderRadius: '6px', 
+                            overflow: 'hidden', 
+                            display: 'flex', 
+                            flexDirection: 'column-reverse', 
+                            height: `${totalLogged * scaleFactor}px`,
+                            background: 'rgba(255,255,255,0.03)',
+                            transition: 'height 0.3s ease-out'
+                          }}
+                        >
+                          {categories.map(cat => {
+                            const mins = day.categories[cat.id] || 0;
+                            if (mins === 0) return null;
+                            const equivSlots = mins / storageService.getSettings().intervalMinutes;
+                            return (
+                              <div 
+                                key={cat.id} 
+                                style={{ 
+                                  height: `${equivSlots * scaleFactor}px`, 
+                                  background: cat.color,
+                                  width: '100%' 
+                                }}
+                                title={`${cat.name}: ${(mins / 60).toFixed(1)} saat`}
+                              />
+                            );
+                          })}
+                        </div>
+
+                        <span 
+                          style={{ 
+                            fontSize: '0.7rem', 
+                            color: 'var(--color-text-secondary)', 
+                            marginTop: '8px', 
+                            whiteSpace: 'nowrap',
+                            transform: 'rotate(-15deg)'
+                          }}
+                        >
+                          {day.dateLabel}
+                        </span>
                       </div>
+                    );
+                  })}
 
-                      <span 
-                        style={{ 
-                          fontSize: '0.7rem', 
-                          color: 'var(--color-text-secondary)', 
-                          marginTop: '8px', 
-                          whiteSpace: 'nowrap',
-                          transform: 'rotate(-15deg)'
-                        }}
-                      >
-                        {day.dateLabel}
-                      </span>
-                    </div>
-                  );
-                })}
-
+                </div>
               </div>
             </div>
 

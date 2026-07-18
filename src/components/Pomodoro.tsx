@@ -145,7 +145,8 @@ export default function Pomodoro({ pomodoroState }: PomodoroProps) {
 
       {/* Main Timer Card */}
       <div
-        className="glass-panel"
+        className="glass-panel pomodoro-card"
+
         style={{
           padding: '32px 24px',
           display: 'flex',
@@ -176,7 +177,8 @@ export default function Pomodoro({ pomodoroState }: PomodoroProps) {
         </div>
 
         {/* Ring Timer */}
-        <div style={{ position: 'relative', width: '260px', height: '260px', flexShrink: 0 }}>
+        <div className="pomodoro-timer-wrapper" style={{ position: 'relative', width: '260px', height: '260px', flexShrink: 0 }}>
+
           <svg width="260" height="260" viewBox="0 0 260 260">
             <defs>
               {Object.entries(PHASE).map(([key, p]) => (

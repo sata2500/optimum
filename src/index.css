@@ -386,9 +386,11 @@ input:focus, select:focus, textarea:focus {
     background: transparent;
     border-top: none;
     box-shadow: none;
-    position: absolute;
+    position: fixed;
+    z-index: 200;
     padding-bottom: 0;
   }
+
 
   .app-header {
     max-width: 1200px;
@@ -962,4 +964,36 @@ select option {
     color: #000000 !important;
   }
 }
+
+/* ── HORIZONTAL SCROLL OVERLAY MASK ── */
+.pills-scroll-wrapper {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+.pills-scroll-wrapper::-webkit-scrollbar {
+  height: 5px;
+}
+
+.pills-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px;
+}
+
+/* ── POMODORO SMALL VIEWPORT OPTIMIZATIONS ── */
+@media (max-height: 720px) {
+  .pomodoro-card {
+    padding: 16px 20px !important;
+    gap: 16px !important;
+  }
+  .pomodoro-timer-wrapper {
+    width: 200px !important;
+    height: 200px !important;
+  }
+  .pomodoro-timer-wrapper svg {
+    width: 200px !important;
+    height: 200px !important;
+  }
+}
+
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Settings as SettingsIcon, BarChart3, Timer, CloudSync } from 'lucide-react';
+import { LayoutDashboard, Settings as SettingsIcon, BarChart3, Timer, CloudSync, User as UserIcon } from 'lucide-react';
 import { storageService } from './services/storageService';
 import type { Category, TimeLog, AppSettings } from './services/storageService';
 import { notificationService } from './services/notificationService';
@@ -219,8 +219,10 @@ export default function App() {
     { key: 'dashboard', label: 'Panel',    icon: LayoutDashboard },
     { key: 'pomodoro',  label: 'Pomodoro', icon: Timer           },
     { key: 'analytics', label: 'Analiz',   icon: BarChart3       },
+    { key: 'profile',   label: 'Profil',   icon: UserIcon        },
     { key: 'settings',  label: 'Ayarlar',  icon: SettingsIcon    },
   ];
+
 
   return (
     <div className="app-container">
@@ -271,7 +273,11 @@ export default function App() {
         )}
         {activeTab === 'pomodoro' && <Pomodoro pomodoroState={pomodoro} />}
         {activeTab === 'analytics' && (
-          <Analytics categories={categories} logs={logs} />
+          <Analytics 
+            categories={categories} 
+            logs={logs} 
+            onNavigateToTab={(tab) => setActiveTab(tab)} 
+          />
         )}
         {activeTab === 'profile' && (
           <Profile

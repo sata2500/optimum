@@ -6,6 +6,7 @@ import {
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
+import { calculateStreak } from '../utils/streakUtils';
 import { useToast } from './Toast';
 
 interface DashboardProps {
@@ -88,6 +89,7 @@ export default function Dashboard({
   const [currentMissedIndex, setCurrentMissedIndex] = useState<number>(-1);
 
   const [notifPermission, setNotifPermission] = useState<string>('default');
+  const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(() => sessionStorage.getItem('optimum_notif_banner_dismissed') === 'true');
 
   useEffect(() => {
     const checkPerm = async () => {
@@ -280,46 +282,9 @@ export default function Dashboard({
 
   // --- STREAK (ZİNCİR) HESAPLAMA ---
   const currentStreak = useMemo(() => {
-    if (logs.length === 0) return 0;
-    const dailyGoalHours = settings.dailyProductiveTargetHours || 4;
-    const intervalMinutes = settings.intervalMinutes;
-
-    const dailyProductiveMinutes: { [date: string]: number } = {};
-    logs.forEach(l => {
-      const cat = categories.find(c => c.id === l.categoryId);
-      const isProductive = cat ? (cat.isProductive !== false) : ['egitim', 'market', 'ibadet', 'sosyal'].includes(l.categoryId);
-      if (isProductive) {
-        const mins = l.durationMinutes || intervalMinutes;
-        dailyProductiveMinutes[l.date] = (dailyProductiveMinutes[l.date] || 0) + mins;
-      }
-    });
-
-    let streak = 0;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayMins = dailyProductiveMinutes[todayStr] || 0;
-    const todayMet = (todayMins / 60) >= dailyGoalHours;
-
-    const checkDate = new Date();
-    checkDate.setDate(checkDate.getDate() - 1);
-
-    while (true) {
-      const dateKey = checkDate.toISOString().split('T')[0];
-      const dayMins = dailyProductiveMinutes[dateKey] || 0;
-      const met = (dayMins / 60) >= dailyGoalHours;
-      if (met) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-
-    if (todayMet) {
-      streak++;
-    }
-
-    return streak;
+    return calculateStreak(logs, categories, settings);
   }, [logs, categories, settings]);
+
 
   const isTimeInActiveRange = (timeMinutes: number, startMin: number, endMin: number): boolean => {
     if (endMin >= startMin) {
@@ -605,12 +570,12 @@ export default function Dashboard({
 
   const requestAndVerifyPermission = async (): Promise<boolean> => {
     if (!('Notification' in window)) {
-      alert('Tarayıcınız bildirim özelliğini desteklemiyor veya güvenli olmayan (HTTP) bir bağlantı üzerinden bağlanıyorsunuz. Bildirimleri kullanabilmek için lütfen "http://localhost:5173" veya bir "HTTPS" bağlantısı kullanın.');
+      toast.error('Tarayıcınız bildirim özelliğini desteklemiyor veya güvenli olmayan (HTTP) bir bağlantı üzerinden bağlanıyorsunuz. Bildirimleri kullanabilmek için lütfen "http://localhost:5173" veya bir "HTTPS" bağlantısı kullanın.');
       return false;
     }
 
     if (Notification.permission === 'denied') {
-      alert('Bildirim izni daha önce engellenmiş. Bildirimleri almak için lütfen tarayıcınızın adres çubuğundaki kilit simgesine (kilit/kamera/ayar ikonu) tıklayarak Bildirim İznini "İzin Ver" (Allow) olarak değiştirin ve sayfayı yenileyin.');
+      toast.error('Bildirim izni daha önce engellenmiş. Bildirimleri almak için lütfen tarayıcınızın adres çubuğundaki kilit simgesine (kilit/kamera/ayar ikonu) tıklayarak Bildirim İznini "İzin Ver" (Allow) olarak değiştirin ve sayfayı yenileyin.');
       return false;
     }
 
@@ -619,11 +584,12 @@ export default function Dashboard({
     setNotifPermission(status);
 
     if (!granted) {
-      alert('Bildirim izni reddedildi. Hatırlatıcıları almak için izne onay vermeniz gerekmektedir.');
+      toast.error('Bildirim izni reddedildi. Hatırlatıcıları almak için izne onay vermeniz gerekmektedir.');
     }
 
     return granted;
   };
+
 
 
 
@@ -658,7 +624,7 @@ export default function Dashboard({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* 0. Notification Permission Warning Banner */}
-      {settings.notificationsEnabled && notifPermission !== 'granted' && (
+      {settings.notificationsEnabled && notifPermission !== 'granted' && !isBannerDismissed && (
         <div 
           className="glass-panel animate-scale-in" 
           style={{ 
@@ -679,47 +645,73 @@ export default function Dashboard({
               Hatırlatıcılar açık fakat tarayıcınızın bildirim izni eksik! Bildirimleri alamayacaksınız.
             </span>
           </div>
-          <button 
-            type="button"
-            className="btn" 
-            onClick={async () => {
-              const granted = await requestAndVerifyPermission();
-              if (granted) {
-                try {
-                  let sent = false;
-                  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    try {
-                      const reg = await navigator.serviceWorker.ready;
-                      await reg.showNotification('Optimum Flow', {
-                        body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.',
-                      });
-                      sent = true;
-                    } catch (swErr) {
-                      console.warn('SW success notification failed:', swErr);
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button 
+              type="button"
+              className="btn" 
+              onClick={async () => {
+                const granted = await requestAndVerifyPermission();
+                if (granted) {
+                  try {
+                    let sent = false;
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                      try {
+                        const reg = await navigator.serviceWorker.ready;
+                        await reg.showNotification('Optimum Flow', {
+                          body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.',
+                        });
+                        sent = true;
+                      } catch (swErr) {
+                        console.warn('SW success notification failed:', swErr);
+                      }
                     }
+                    if (!sent && 'Notification' in window) {
+                      new Notification('Optimum Flow', { body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.' });
+                    }
+                    notificationService.rescheduleNotifications();
+                  } catch (e) {
+                    console.error(e);
                   }
-                  if (!sent && 'Notification' in window) {
-                    new Notification('Optimum Flow', { body: 'Tebrikler! Bildirimler başarıyla etkinleştirildi.' });
-                  }
-                  notificationService.rescheduleNotifications();
-                } catch (e) {
-                  console.error(e);
                 }
-              }
-            }}
-            style={{ 
-              padding: '6px 12px', 
-              fontSize: '0.78rem', 
-              background: '#ef4444', 
-              color: '#fff', 
-              borderRadius: '8px',
-              border: 'none',
-              fontWeight: '700',
-              cursor: 'pointer'
-            }}
-          >
-            İzni Etkinleştir
-          </button>
+              }}
+              style={{ 
+                padding: '6px 12px', 
+                fontSize: '0.78rem', 
+                background: '#ef4444', 
+                color: '#fff', 
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              İzni Etkinleştir
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsBannerDismissed(true);
+                sessionStorage.setItem('optimum_notif_banner_dismissed', 'true');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#ef4444',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '50%',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+              title="Kapat"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
       )}
       
