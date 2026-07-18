@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   AlertCircle, ChevronRight, X, ChevronLeft, Calendar, Plus, Trash2, ZoomIn, ZoomOut, Maximize, Minimize,
-  Flame, Zap, Download, Printer
+  Download, Printer
 } from 'lucide-react';
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
 import type { User } from '@supabase/supabase-js';
 
 import { notificationService } from '../services/notificationService';
 import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
-import { calculateStreak, isLogProductive } from '../utils/productivityUtils';
 import { useToast } from './Toast';
 
 
@@ -256,38 +255,7 @@ export default function Dashboard({
     checkMissed();
   }, [logs, settings]);
 
-  // --- TODAY PRODUCTIVITY STATS & GOALS ---
-  const todayProductiveStats = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayLogs = logs.filter(l => l.date === todayStr);
-    const intervalMinutes = settings.intervalMinutes;
 
-    let totalProdMins = 0;
-    const categoryProdMins: { [catId: string]: number } = {};
-
-    todayLogs.forEach(l => {
-      const isProductive = isLogProductive(l, categories);
-      const mins = l.durationMinutes || intervalMinutes;
-      if (isProductive) {
-        totalProdMins += mins;
-
-        categoryProdMins[l.categoryId] = (categoryProdMins[l.categoryId] || 0) + mins;
-      }
-    });
-
-    const totalProdHours = totalProdMins / 60;
-    return {
-      totalProdHours,
-      categoryHours: Object.fromEntries(
-        Object.entries(categoryProdMins).map(([catId, mins]) => [catId, mins / 60])
-      )
-    };
-  }, [logs, categories, settings.intervalMinutes]);
-
-  // --- STREAK (ZİNCİR) HESAPLAMA ---
-  const currentStreak = useMemo(() => {
-    return calculateStreak(logs, categories, settings);
-  }, [logs, categories, settings]);
 
 
   const isTimeInActiveRange = (timeMinutes: number, startMin: number, endMin: number): boolean => {
@@ -310,7 +278,7 @@ export default function Dashboard({
       dates.push(d);
     }
     
-    const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
+    const sorted = dates.sort((a, b) => b.getTime() - a.getTime());
     
     // Filter out future dates
     const today = new Date();
@@ -356,8 +324,9 @@ export default function Dashboard({
       return currentAnchorDate.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     }
     
-    const oldest = datesToRender[0];
-    const newest = datesToRender[datesToRender.length - 1];
+    const sortedAsc = [...datesToRender].sort((a, b) => a.getTime() - b.getTime());
+    const oldest = sortedAsc[0];
+    const newest = sortedAsc[sortedAsc.length - 1];
     return `${oldest.getDate()} ${oldest.toLocaleString('tr-TR', { month: 'short' })} - ${newest.getDate()} ${newest.toLocaleString('tr-TR', { month: 'short' })} ${newest.getFullYear()} (${customDaysCount} Gün)`;
   };
 
@@ -764,106 +733,7 @@ export default function Dashboard({
         )}
       </div>
 
-      {/* Daily Productive Target & Streak Widget */}
-      <div 
-        className="glass-panel" 
-        style={{ 
-          padding: '16px 20px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '12px',
-          borderColor: currentStreak > 0 ? 'rgba(251, 146, 60, 0.25)' : 'var(--color-border)',
-          background: currentStreak > 0 ? 'rgba(251, 146, 60, 0.02)' : 'rgba(255, 255, 255, 0.01)'
-        }}
-      >
-        {/* Streak and Total Today Row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div 
-              style={{ 
-                background: currentStreak > 0 ? 'rgba(251, 146, 60, 0.15)' : 'rgba(255,255,255,0.03)', 
-                padding: '4px 10px', 
-                borderRadius: '20px', 
-                fontSize: '0.78rem', 
-                fontWeight: 'bold', 
-                color: currentStreak > 0 ? '#fb923c' : 'var(--color-text-secondary)',
-                border: `1px solid ${currentStreak > 0 ? 'rgba(251, 146, 60, 0.3)' : 'var(--color-border)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <Flame size={14} fill={currentStreak > 0 ? '#fb923c' : 'transparent'} />
-              {currentStreak} Günlük Seri
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-            <Zap size={14} color="#eab308" fill="#eab308" />
-            <span>Bugün: <strong>{todayProductiveStats.totalProdHours.toFixed(1)}</strong> / {settings.dailyProductiveTargetHours || 4} Saat</span>
-          </div>
-        </div>
-
-        {/* Total Productive progress bar */}
-        {(() => {
-          const target = settings.dailyProductiveTargetHours || 4;
-          const ratio = Math.min(100, Math.round((todayProductiveStats.totalProdHours / target) * 100));
-          return (
-            <div style={{ width: '100%' }}>
-              <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-                <div 
-                  style={{ 
-                    width: `${ratio}%`, 
-                    height: '100%', 
-                    background: 'linear-gradient(90deg, var(--color-primary) 0%, #22c55e 100%)', 
-                    borderRadius: '4px',
-                    transition: 'width 0.4s ease'
-                  }} 
-                />
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Category Targets Mini Bars */}
-        {(() => {
-          const targets = settings.categoryTargets || {};
-          const activeTargets = Object.entries(targets).filter(([_, targetVal]) => targetVal > 0);
-          if (activeTargets.length === 0) return null;
-
-          return (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 14px', marginTop: '4px', borderTop: '1px solid var(--color-border)', paddingTop: '10px' }}>
-              {activeTargets.map(([catId, targetVal]) => {
-                const cat = categories.find(c => c.id === catId);
-                if (!cat) return null;
-                const hoursLogged = todayProductiveStats.categoryHours[catId] || 0;
-                const ratio = Math.min(100, Math.round((hoursLogged / targetVal) * 100));
-
-                return (
-                  <div key={catId} style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: '1 1 120px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                      <span style={{ color: 'var(--color-text-secondary)' }}>{cat.name}</span>
-                      <strong style={{ color: '#fff' }}>{hoursLogged.toFixed(1)}/{targetVal}s</strong>
-                    </div>
-                    {/* Micro bar */}
-                    <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: '2px', overflow: 'hidden' }}>
-                      <div 
-                        style={{ 
-                          width: `${ratio}%`, 
-                          height: '100%', 
-                          background: cat.color, 
-                          borderRadius: '2px',
-                          transition: 'width 0.4s ease'
-                        }} 
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-      </div>
+      {/* Daily Productive Target & Streak Widget has been moved to Profile Page */}
 
 
 
@@ -1067,66 +937,44 @@ export default function Dashboard({
           }}
         >
 
-        {/* Date navigators & actions */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button className="btn btn-secondary" onClick={() => handleNavigateAnchor('prev')} style={{ padding: '8px 12px', borderRadius: '8px' }} title="Önceki Sayfa">
-              <ChevronLeft size={16} />
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => handleNavigateAnchor('next')} 
-              disabled={isNextPeriodFuture()}
-              style={{ 
-                padding: '8px 12px', 
-                borderRadius: '8px',
-                opacity: isNextPeriodFuture() ? 0.5 : 1,
-                cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer'
-              }}
-              title="Sonraki Sayfa"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button 
-              type="button"
-              className="btn btn-secondary" 
-              onClick={handleExportExcel}
-              style={{ 
-                padding: '8px 16px', 
-                fontSize: '0.8rem', 
-                borderRadius: '8px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
-              }}
-              title="Excel (CSV) Olarak İndir"
-            >
-              <Download size={14} />
-              <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Excel</span>
-            </button>
-            <button 
-              type="button"
-              className="btn btn-secondary" 
-              onClick={handlePrint}
-              style={{ 
-                padding: '8px 16px', 
-                fontSize: '0.8rem', 
-                borderRadius: '8px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
-              }}
-              title="Yazdır / PDF Kaydet"
-            >
-              <Printer size={14} />
-              <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Yazdır (PDF)</span>
-            </button>
-          </div>
+        {/* Actions (Excel, PDF Print) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px' }}>
+          <button 
+            type="button"
+            className="btn btn-secondary" 
+            onClick={handleExportExcel}
+            style={{ 
+              padding: '8px 16px', 
+              fontSize: '0.8rem', 
+              borderRadius: '8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+            title="Excel (CSV) Olarak İndir"
+          >
+            <Download size={14} />
+            <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Excel</span>
+          </button>
+          <button 
+            type="button"
+            className="btn btn-secondary" 
+            onClick={handlePrint}
+            style={{ 
+              padding: '8px 16px', 
+              fontSize: '0.8rem', 
+              borderRadius: '8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+            title="Yazdır / PDF Kaydet"
+          >
+            <Printer size={14} />
+            <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Yazdır (PDF)</span>
+          </button>
         </div>
 
         {/* Custom date range slider (V4) */}
@@ -1214,19 +1062,14 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Centered Period Header */}
+      {/* Centered Period Header with Conditional Date Navigation */}
       <div 
         className="glass-panel" 
         style={{ 
-          padding: '12px 20px', 
+          padding: '8px 20px', 
           display: 'flex', 
-          justifyContent: 'center', 
+          justifyContent: 'space-between', 
           alignItems: 'center', 
-          gap: '8px', 
-          fontSize: '1.05rem', 
-          fontWeight: '800', 
-          fontFamily: 'Outfit, sans-serif',
-          color: '#fff',
           background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
           borderColor: 'rgba(255, 255, 255, 0.05)',
           boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
@@ -1235,8 +1078,55 @@ export default function Dashboard({
           width: '100%'
         }}
       >
-        <Calendar size={18} color="var(--color-primary)" />
-        <span style={{ textShadow: '0 0 10px rgba(99, 102, 241, 0.3)' }}>{formatPeriodLabel()}</span>
+        {customDaysCount === 1 ? (
+          <button 
+            type="button"
+            className="btn btn-secondary" 
+            onClick={() => handleNavigateAnchor('prev')} 
+            style={{ 
+              padding: '6px 10px', 
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }} 
+            title="Önceki Gün"
+          >
+            <ChevronLeft size={16} />
+          </button>
+        ) : (
+          <div style={{ width: '36px', height: '32px' }} />
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif', color: '#fff' }}>
+          <Calendar size={18} color="var(--color-primary)" />
+          <span style={{ textShadow: '0 0 10px rgba(99, 102, 241, 0.3)' }}>{formatPeriodLabel()}</span>
+        </div>
+
+        {customDaysCount === 1 ? (
+          <button 
+            type="button"
+            className="btn btn-secondary" 
+            onClick={() => handleNavigateAnchor('next')} 
+            disabled={isNextPeriodFuture()}
+            style={{ 
+              padding: '6px 10px', 
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: isNextPeriodFuture() ? 0.5 : 1,
+              cursor: isNextPeriodFuture() ? 'not-allowed' : 'pointer',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}
+            title="Sonraki Gün"
+          >
+            <ChevronRight size={16} />
+          </button>
+        ) : (
+          <div style={{ width: '36px', height: '32px' }} />
+        )}
       </div>
 
       {/* 4. The Main Excel Grid Table / Daily Detail List Table */}
@@ -1273,7 +1163,7 @@ export default function Dashboard({
             <thead>
               <tr style={{ background: '#090d16' }}>
                 <th style={{ width: '28%', padding: `${Math.round(10 * zoomScale)}px ${Math.round(12 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
-                  Saat & Tarih
+                  Saat
                 </th>
                 <th style={{ width: '32%', padding: `${Math.round(10 * zoomScale)}px ${Math.round(12 * zoomScale)}px`, fontSize: `${0.85 * zoomScale}rem`, color: 'var(--color-text-secondary)', borderBottom: '2px solid var(--color-border)', textAlign: 'left' }}>
                   Kategori
@@ -1296,8 +1186,7 @@ export default function Dashboard({
                   const dateStr = formatDateStr(currentAnchorDate);
                   const log = getLogForCell(dateStr, slot);
                   const isFuture = currentAnchorDate.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
-                  const dayOfWeekStr = DAYS_SHORT_TR[currentAnchorDate.getDay() === 0 ? 6 : currentAnchorDate.getDay() - 1];
-                  const displayDate = `${currentAnchorDate.getDate()}/${currentAnchorDate.getMonth() + 1}`;
+
 
                 // Filter visibility check
                 const isFilteredOut = log && (
@@ -1320,7 +1209,7 @@ export default function Dashboard({
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    {/* 1. Saat & Tarih */}
+                    {/* 1. Saat */}
                     <td 
                       className="excel-cell-capsule"
                       style={{ 
@@ -1332,9 +1221,6 @@ export default function Dashboard({
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: `${Math.round(8 * zoomScale)}px` }}>
                         <span style={{ color: 'var(--color-primary)' }}>{slot}</span>
-                        <span style={{ fontSize: `${0.75 * zoomScale}rem`, color: 'var(--color-text-muted)', fontWeight: '400' }}>
-                          - {displayDate} {dayOfWeekStr}
-                        </span>
                       </div>
                     </td>
 

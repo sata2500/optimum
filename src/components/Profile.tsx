@@ -6,7 +6,7 @@ import type { Category, TimeLog } from '../services/storageService';
 import { calculateStreak, isLogProductive } from '../utils/productivityUtils';
 
 import { 
-  Award, Flame, TrendingUp, User as UserIcon, Mail, ShieldCheck, Trophy 
+  Award, Flame, TrendingUp, User as UserIcon, Mail, ShieldCheck, Trophy, Zap
 } from 'lucide-react';
 
 import { useToast } from './Toast';
@@ -27,6 +27,33 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
   const currentStreak = useMemo(() => {
     return calculateStreak(logs, categories, settings);
   }, [logs, categories, settings]);
+
+  // --- 1b. TODAY PRODUCTIVITY STATS & GOALS ---
+  const todayProductiveStats = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayLogs = logs.filter(l => l.date === todayStr);
+    const intervalMinutes = settings.intervalMinutes;
+
+    let totalProdMins = 0;
+    const categoryProdMins: { [catId: string]: number } = {};
+
+    todayLogs.forEach(l => {
+      const isProductive = isLogProductive(l, categories);
+      const mins = l.durationMinutes || intervalMinutes;
+      if (isProductive) {
+        totalProdMins += mins;
+        categoryProdMins[l.categoryId] = (categoryProdMins[l.categoryId] || 0) + mins;
+      }
+    });
+
+    const totalProdHours = totalProdMins / 60;
+    return {
+      totalProdHours,
+      categoryHours: Object.fromEntries(
+        Object.entries(categoryProdMins).map(([catId, mins]) => [catId, mins / 60])
+      )
+    };
+  }, [logs, categories, settings.intervalMinutes]);
 
 
   // --- 2. POMODORO STATISTICS ---
@@ -349,6 +376,89 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
           </div>
         </div>
 
+      </div>
+
+      {/* 2b. Daily Productive Target & Category Targets (Moved from Dashboard) */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          padding: '20px 24px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '12px',
+          borderColor: currentStreak > 0 ? 'rgba(251, 146, 60, 0.25)' : 'var(--color-border)',
+          background: currentStreak > 0 ? 'rgba(251, 146, 60, 0.02)' : 'rgba(255, 255, 255, 0.01)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ fontSize: '1.05rem', fontFamily: 'Outfit', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Zap size={18} color="#eab308" fill="#eab308" />
+            Günlük Üretkenlik Hedefi
+          </h3>
+          <div style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+            Bugün: <strong>{todayProductiveStats.totalProdHours.toFixed(1)}</strong> / {settings.dailyProductiveTargetHours || 4} Saat
+          </div>
+        </div>
+
+        {/* Total Productive progress bar */}
+        {(() => {
+          const target = settings.dailyProductiveTargetHours || 4;
+          const ratio = Math.min(100, Math.round((todayProductiveStats.totalProdHours / target) * 100));
+          return (
+            <div style={{ width: '100%' }}>
+              <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                <div 
+                  style={{ 
+                    width: `${ratio}%`, 
+                    height: '100%', 
+                    background: 'linear-gradient(90deg, var(--color-primary) 0%, #22c55e 100%)', 
+                    borderRadius: '4px',
+                    transition: 'width 0.4s ease'
+                  }} 
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Category Targets Mini Bars */}
+        {(() => {
+          const targets = settings.categoryTargets || {};
+          const activeTargets = Object.entries(targets).filter(([_, targetVal]) => targetVal > 0);
+          if (activeTargets.length === 0) return null;
+
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 14px', marginTop: '4px', borderTop: '1px solid var(--color-border)', paddingTop: '10px' }}>
+              {activeTargets.map(([catId, targetVal]) => {
+                const cat = categories.find(c => c.id === catId);
+                if (!cat) return null;
+                const hoursLogged = todayProductiveStats.categoryHours[catId] || 0;
+                const ratio = Math.min(100, Math.round((hoursLogged / targetVal) * 100));
+
+                return (
+                  <div key={catId} style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: '1 1 120px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{cat.name}</span>
+                      <strong style={{ color: '#fff' }}>{hoursLogged.toFixed(1)}/{targetVal}s</strong>
+                    </div>
+                    {/* Micro bar */}
+                    <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div 
+                        style={{ 
+                          width: `${ratio}%`, 
+                          height: '100%', 
+                          background: cat.color, 
+                          borderRadius: '2px',
+                          transition: 'width 0.4s ease'
+                        }} 
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* 3. Detailed Statistics Row */}
