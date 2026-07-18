@@ -254,12 +254,13 @@ export default function Analytics({ categories, logs, settings, onNavigateToTab 
       <div 
         className="glass-panel no-print" 
         style={{ 
-          padding: '18px 24px', 
+          padding: '16px 20px', 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
           flexWrap: 'wrap', 
-          gap: '16px' 
+          gap: '16px',
+          width: '100%'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -267,14 +268,38 @@ export default function Analytics({ categories, logs, settings, onNavigateToTab 
           <h2 style={{ fontSize: '1.2rem', fontFamily: 'Outfit', margin: 0 }}>Analiz Paneli</h2>
         </div>
         
-        {/* Buttons and controls */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        {/* Controls container - stacks on mobile, wraps cleanly */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'stretch', 
+          flexWrap: 'wrap', 
+          gap: '12px',
+          flex: '1 1 auto',
+          justifyContent: 'flex-end',
+          maxWidth: '100%'
+        }}>
           {/* Dynamic Slider for Date Range Selection */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(255,255,255,0.02)', padding: '6px 16px', borderRadius: '12px', border: '1px solid var(--color-border)', minWidth: '280px', flex: 1 }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600', whiteSpace: 'nowrap' }}>
-              Zaman Aralığı: <strong style={{ color: 'var(--color-primary)', fontFamily: 'Outfit' }}>{localDaysCount} Gün</strong>
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '6px', 
+            background: 'rgba(255,255,255,0.02)', 
+            padding: '10px 16px', 
+            borderRadius: '12px', 
+            border: '1px solid var(--color-border)', 
+            minWidth: '220px', 
+            maxWidth: '100%',
+            flex: '1 1 260px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                Zaman Aralığı:
+              </span>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontFamily: 'Outfit', fontWeight: '800' }}>
+                {localDaysCount} Gün
+              </strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>1 G</span>
               <input 
                 type="range"
@@ -302,24 +327,29 @@ export default function Analytics({ categories, logs, settings, onNavigateToTab 
 
           {/* CSV & PDF Actions */}
           {logs.length > 0 && (
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '6px', 
+              alignItems: 'center',
+              flex: '0 0 auto'
+            }}>
               <button 
                 onClick={handleExportCSV} 
                 className="btn btn-secondary" 
-                style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}
+                style={{ padding: '8px 14px', fontSize: '0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', height: '100%', minHeight: '38px', border: '1px solid rgba(255, 255, 255, 0.08)' }}
                 title="Verileri Excel/CSV olarak indir"
               >
                 <Download size={14} />
-                Excel / CSV
+                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>Excel / CSV</span>
               </button>
               <button 
                 onClick={handlePrint} 
                 className="btn btn-secondary" 
-                style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}
+                style={{ padding: '8px 14px', fontSize: '0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', height: '100%', minHeight: '38px', border: '1px solid rgba(255, 255, 255, 0.08)' }}
                 title="Raporu Yazdır / PDF Kaydet"
               >
                 <Printer size={14} />
-                Yazdır / PDF
+                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600' }}>PDF</span>
               </button>
             </div>
           )}
