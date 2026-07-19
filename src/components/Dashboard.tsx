@@ -332,6 +332,13 @@ export default function Dashboard({
 
 
 
+  const formatDateStr = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Date range calculations
   const getDatesToRender = (): Date[] => {
     const dates: Date[] = [];
@@ -412,14 +419,6 @@ export default function Dashboard({
     return currentAnchorDate >= today;
   };
 
-
-
-  const formatDateStr = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   const formatPeriodLabel = (): string => {
     if (datesToRender.length === 0) return 'Tarih seçilmedi';
