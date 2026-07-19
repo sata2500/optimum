@@ -377,18 +377,7 @@ input:focus, select:focus, textarea:focus {
   }
   
   .bottom-nav {
-    top: 0;
-    bottom: auto;
-    left: auto;
-    right: 24px;
-    height: 70px;
-    width: auto;
-    background: transparent;
-    border-top: none;
-    box-shadow: none;
-    position: fixed;
-    z-index: 200;
-    padding-bottom: 0;
+    display: none !important;
   }
 
 
@@ -987,6 +976,48 @@ select option {
   .pomodoro-timer-wrapper svg {
     width: 200px !important;
     height: 200px !important;
+  }
+}
+
+/* Desktop Navigation and Header Layout Styles */
+.desktop-nav {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .desktop-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Outfit', sans-serif;
+  }
+  
+  .desktop-nav-item:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .desktop-nav-item-active {
+    color: var(--color-primary);
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.2);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.1);
   }
 }
 

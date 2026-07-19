@@ -1260,7 +1260,8 @@ export default function Dashboard({
                   (selectedGridActIds.size > 0 && !selectedGridActIds.has(log.activityId))
                 );
 
-                const isEditable = !isFuture;
+                const todayStr = formatDateStr(new Date());
+                const isEditable = dateStr === todayStr && !isFuture;
 
                 return (
                   <tr 
@@ -1442,7 +1443,8 @@ export default function Dashboard({
                   const dateStr = formatDateStr(day);
                   const log = getLogForCell(dateStr, slot);
                   const isFuture = day.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
-                  const isEditable = !isFuture;
+                  const todayStr = formatDateStr(new Date());
+                  const isEditable = dateStr === todayStr && !isFuture;
                   
                   // Filter visibility check
                   const isFilteredOut = log && (

@@ -311,91 +311,109 @@ export default function App() {
           </span>
         </div>
 
-        {/* Sync Indicator and Profile Avatar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={handleSyncClick}
-            style={{ 
-              padding: '8px 12px', 
-              borderRadius: '12px', 
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid rgba(255,255,255,0.06)'
-            }}
-            title={
-              !user 
-                ? 'Bulut yedekleme aktif değil. Giriş yapmak için tıklayın.' 
-                : (syncStatus === 'pending' 
-                  ? 'Kaydedilmemiş değişiklikleriniz var. Eşitleniyor...' 
-                  : 'Bulut verileriniz güncel ve eşitlendi.')
-            }
-          >
-            <CloudSync 
-              size={18} 
-              color={
-                !user 
-                  ? '#64748b' 
-                  : (syncStatus === 'pending' 
-                    ? '#f97316' 
-                    : '#22c55e')
-              } 
-            />
-          </button>
+        {/* Right side container: desktop nav + mobile/desktop sync and avatar actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {/* Desktop Navigation Links */}
+          <div className="desktop-nav">
+            {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                className={`desktop-nav-item ${activeTab === key ? 'desktop-nav-item-active' : ''}`}
+                onClick={() => setActiveTab(key)}
+                aria-label={label}
+              >
+                <Icon size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
 
-          {user ? (
+          {/* Sync Indicator and Profile Avatar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
-              onClick={() => setActiveTab('profile')}
-              style={{
-                background: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                width: '32px',
-                height: '32px',
+              className="btn btn-secondary"
+              onClick={handleSyncClick}
+              style={{ 
+                padding: '8px 12px', 
+                borderRadius: '12px', 
+                fontSize: '0.85rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 8px rgba(56, 189, 248, 0.2)',
-                border: '1.5px solid var(--color-primary)'
+                border: '1px solid rgba(255,255,255,0.06)'
               }}
-              title="Profiliniz"
+              title={
+                !user 
+                  ? 'Bulut yedekleme aktif değil. Giriş yapmak için tıklayın.' 
+                  : (syncStatus === 'pending' 
+                    ? 'Kaydedilmemiş değişiklikleriniz var. Eşitleniyor...' 
+                    : 'Bulut verileriniz güncel ve eşitlendi.')
+              }
             >
-              {user.user_metadata?.avatar_url ? (
-                <img 
-                  src={user.user_metadata.avatar_url} 
-                  alt="Avatar" 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                />
-              ) : (
-                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', fontWeight: 'bold' }}>
-                  {(user.user_metadata?.full_name || settings.userName || 'K')[0].toUpperCase()}
-                </div>
-              )}
+              <CloudSync 
+                size={18} 
+                color={
+                  !user 
+                    ? '#64748b' 
+                    : (syncStatus === 'pending' 
+                      ? '#f97316' 
+                      : '#22c55e')
+                } 
+              />
             </button>
-          ) : (
-            <button
-              onClick={() => setActiveTab('profile')}
-              className="btn btn-primary"
-              style={{ 
-                padding: '6px 14px', 
-                borderRadius: '10px', 
-                fontSize: '0.8rem',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <UserIcon size={13} />
-              Giriş Yap
-            </button>
-          )}
+
+            {user ? (
+              <button
+                onClick={() => setActiveTab('profile')}
+                style={{
+                  background: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 8px rgba(56, 189, 248, 0.2)',
+                  border: '1.5px solid var(--color-primary)'
+                }}
+                title="Profiliniz"
+              >
+                {user.user_metadata?.avatar_url ? (
+                  <img 
+                    src={user.user_metadata.avatar_url} 
+                    alt="Avatar" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', fontWeight: 'bold' }}>
+                    {(user.user_metadata?.full_name || settings.userName || 'K')[0].toUpperCase()}
+                  </div>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => setActiveTab('profile')}
+                className="btn btn-primary"
+                style={{ 
+                  padding: '6px 14px', 
+                  borderRadius: '10px', 
+                  fontSize: '0.85rem',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <UserIcon size={13} />
+                Giriş Yap
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
