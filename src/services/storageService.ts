@@ -166,17 +166,15 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   },
 
-  // --- CATEGORIES ---
   getCategories(): Category[] {
     const data = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
     if (!data) {
-      this.saveCategories(DEFAULT_CATEGORIES);
-      return DEFAULT_CATEGORIES;
+      return [];
     }
     try {
       return JSON.parse(data);
     } catch {
-      return DEFAULT_CATEGORIES;
+      return [];
     }
   },
 
@@ -501,9 +499,11 @@ export const storageService = {
 
   // Generate 9 days of mock data
   generateMockData(): void {
-
-
-    const categories = this.getCategories();
+    let categories = this.getCategories();
+    if (categories.length === 0) {
+      this.saveCategories(DEFAULT_CATEGORIES);
+      categories = DEFAULT_CATEGORIES;
+    }
     const logs: TimeLog[] = [];
     const settings = this.getSettings();
     const timeSlots = generateSlots(settings.startHour, settings.endHour, settings.intervalMinutes);

@@ -4,7 +4,7 @@ import {
   Download, Printer
 } from 'lucide-react';
 import type { Category, TimeLog, AppSettings } from '../services/storageService';
-import type { User } from '@supabase/supabase-js';
+
 
 import { notificationService } from '../services/notificationService';
 import { parseTimeToMinutes, generateSlots } from '../utils/timeUtils';
@@ -19,9 +19,6 @@ interface DashboardProps {
   onLogDelete: (id: string) => Promise<void>;
   pendingLog: { slot: string; date: string } | null;
   clearPendingLog: () => void;
-  user: User | null;
-
-  onNavigateToTab?: (tab: 'dashboard' | 'pomodoro' | 'analytics' | 'profile' | 'settings') => void;
 }
 
 
@@ -36,8 +33,6 @@ export default function Dashboard({
   onLogDelete,
   pendingLog,
   clearPendingLog,
-  user,
-  onNavigateToTab,
 }: DashboardProps) {
 
   const toast = useToast();
@@ -769,49 +764,11 @@ export default function Dashboard({
         </div>
       )}
       
-      {/* Title Section with Dynamic Avatar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+      {/* Title Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 12px 0' }}>
         <h1 style={{ fontSize: '1.8rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif', color: '#fff' }}>
           Zaman Paneli
         </h1>
-        {user?.user_metadata?.avatar_url ? (
-          <img 
-            src={user.user_metadata.avatar_url} 
-            alt="Avatar" 
-            onClick={() => onNavigateToTab?.('profile')}
-            style={{ 
-              width: '38px', 
-              height: '38px', 
-              borderRadius: '50%', 
-              border: '2px solid var(--color-primary)', 
-              boxShadow: '0 0 10px var(--color-primary-glow)',
-              objectFit: 'cover',
-              cursor: 'pointer'
-            }} 
-          />
-        ) : (
-          <div 
-            onClick={() => onNavigateToTab?.('profile')}
-            style={{ 
-              width: '38px', 
-              height: '38px', 
-              borderRadius: '50%', 
-              background: 'rgba(6, 182, 212, 0.1)', 
-              border: '2px solid #06b6d4', 
-              color: '#06b6d4', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontWeight: '800', 
-              fontSize: '0.95rem',
-              boxShadow: '0 0 10px rgba(6, 182, 212, 0.15)',
-              fontFamily: 'Outfit, sans-serif',
-              cursor: 'pointer'
-            }}
-          >
-            {(settings.userName || 'K')[0].toUpperCase()}
-          </div>
-        )}
       </div>
 
       {/* Daily Productive Target & Streak Widget has been moved to Profile Page */}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import { storageService } from '../services/storageService';
@@ -6,7 +6,7 @@ import type { Category, TimeLog, AppSettings } from '../services/storageService'
 import { calculateStreak, isLogProductive } from '../utils/productivityUtils';
 
 import { 
-  Award, Flame, TrendingUp, User as UserIcon, Mail, Trophy, Zap, LogOut, CheckCircle, ShieldAlert
+  Award, Flame, TrendingUp, User as UserIcon, Mail, Trophy, Zap, LogOut, CheckCircle, ShieldAlert, Edit3
 } from 'lucide-react';
 
 import { useToast } from './Toast';
@@ -26,6 +26,20 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
 
   const [username, setUsername] = useState(settings.userName || 'Kullanıcı');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Profile Edit States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState(user?.user_metadata?.full_name || settings.userName || '');
+  const [editAvatarUrl, setEditAvatarUrl] = useState(user?.user_metadata?.avatar_url || '');
+  const [editEmail, setEditEmail] = useState(user?.email || '');
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.user_metadata?.full_name || settings.userName || '');
+      setEditAvatarUrl(user.user_metadata?.avatar_url || '');
+      setEditEmail(user.email || '');
+    }
+  }, [user, settings.userName]);
 
   const handleLogin = async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -60,6 +74,35 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
     storageService.saveSettings(newSettings);
     onSettingsChange?.(newSettings);
     toast.success('Kullanıcı adı başarıyla güncellendi.');
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      toast.error('İsim alanı boş bırakılamaz.');
+      return;
+    }
+    
+    try {
+      if (user && supabase) {
+        const { error } = await supabase.auth.updateUser({
+          data: {
+            full_name: editName.trim(),
+            avatar_url: editAvatarUrl.trim()
+          }
+        });
+        if (error) throw error;
+      }
+      
+      const newSettings = { ...settings, userName: editName.trim() };
+      storageService.saveSettings(newSettings);
+      onSettingsChange?.(newSettings);
+      
+      toast.success('Profil bilgileri başarıyla güncellendi.');
+      setIsEditModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(`Profil güncellenemedi: ${err.message}`);
+    }
   };
 
   // --- 1. STREAK CALCULATION LOGIC ---
@@ -345,24 +388,44 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
             </div>
           </div>
 
-          <button 
-            type="button"
-            onClick={handleLogout} 
-            className="btn btn-secondary" 
-            style={{ 
-              padding: '10px 20px', 
-              borderRadius: '12px', 
-              fontSize: '0.85rem', 
-              borderColor: 'rgba(239, 68, 68, 0.25)', 
-              color: '#ef4444',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <LogOut size={14} />
-            Oturumu Kapat
-          </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="btn btn-secondary"
+              style={{
+                padding: '10px 20px',
+                borderRadius: '12px',
+                fontSize: '0.85rem',
+                borderColor: 'var(--color-primary-glow)',
+                color: 'var(--color-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Edit3 size={14} />
+              Düzenle
+            </button>
+            <button 
+              type="button"
+              onClick={handleLogout} 
+              className="btn btn-secondary" 
+              style={{ 
+                padding: '10px 20px', 
+                borderRadius: '12px', 
+                fontSize: '0.85rem', 
+                borderColor: 'rgba(239, 68, 68, 0.25)', 
+                color: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <LogOut size={14} />
+              Oturumu Kapat
+            </button>
+          </div>
         </div>
       ) : (
         <div 
@@ -409,66 +472,67 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
         </div>
       )}
 
-      {/* 1b. Profil Düzenleme / Kullanıcı Adı Kartı */}
-      <div 
-        className="glass-panel" 
-        style={{ 
-          padding: '20px 24px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '14px'
-        }}
-      >
-        <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <UserIcon size={16} color="var(--color-primary)" />
-          Kullanıcı Bilgileri
-        </h3>
-        
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '200px' }}>
-            <label style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-              Kullanıcı Adı
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="İsminiz..."
-              maxLength={25}
+      {!user && (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '20px 24px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '14px'
+          }}
+        >
+          <h3 style={{ fontSize: '1rem', fontWeight: '700', fontFamily: 'Outfit', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <UserIcon size={16} color="var(--color-primary)" />
+            Kullanıcı Bilgileri
+          </h3>
+          
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: '200px' }}>
+              <label style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                Kullanıcı Adı
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="İsminiz..."
+                maxLength={25}
+                style={{ 
+                  padding: '8px 12px', 
+                  borderRadius: '8px', 
+                  background: 'rgba(255,255,255,0.02)', 
+                  border: '1px solid var(--color-border)', 
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              />
+            </div>
+            <button 
+              type="button"
+              onClick={handleSaveUsername}
               style={{ 
-                padding: '8px 12px', 
+                padding: '9px 18px', 
                 borderRadius: '8px', 
-                background: 'rgba(255,255,255,0.02)', 
-                border: '1px solid var(--color-border)', 
+                fontSize: '0.82rem', 
+                fontWeight: 'bold',
+                background: 'var(--color-primary)',
                 color: '#fff',
-                fontSize: '0.85rem',
-                outline: 'none'
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                height: '38px',
+                transition: 'background 0.2s'
               }}
-            />
+            >
+              Kaydet
+            </button>
           </div>
-          <button 
-            type="button"
-            onClick={handleSaveUsername}
-            style={{ 
-              padding: '9px 18px', 
-              borderRadius: '8px', 
-              fontSize: '0.82rem', 
-              fontWeight: 'bold',
-              background: 'var(--color-primary)',
-              color: '#fff',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              height: '38px',
-              transition: 'background 0.2s'
-            }}
-          >
-            Kaydet
-          </button>
         </div>
-      </div>
+      )}
 
       {/* 2. Gamification Widget Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
@@ -733,6 +797,157 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
         </div>
       </div>
 
+      {/* Profil Düzenleme Modalı */}
+      {isEditModalOpen && (
+        <div 
+          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+        >
+          <div 
+            className="glass-panel animate-scale-in"
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              padding: '28px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif', color: '#fff', margin: 0 }}>
+                Profili Düzenle
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  fontSize: '1.1rem',
+                  padding: '4px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                {editAvatarUrl ? (
+                  <img 
+                    src={editAvatarUrl} 
+                    alt="Preview" 
+                    style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--color-primary)', boxShadow: '0 0 12px var(--color-primary-glow)' }} 
+                  />
+                ) : (
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 'bold' }}>
+                    {(editName || 'K')[0].toUpperCase()}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                  Kullanıcı Adı
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="Adınız ve soyadınız..."
+                  maxLength={30}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--color-border)',
+                    color: '#fff',
+                    outline: 'none',
+                    fontSize: '0.85rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                  E-posta (Google ile Giriş)
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  disabled
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.01)',
+                    border: '1px solid rgba(255,255,255,0.04)',
+                    color: 'var(--color-text-muted)',
+                    cursor: 'not-allowed',
+                    fontSize: '0.85rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                  Profil Fotoğrafı URL
+                </label>
+                <input
+                  type="text"
+                  value={editAvatarUrl}
+                  onChange={e => setEditAvatarUrl(e.target.value)}
+                  placeholder="Görsel bağlantısı yapıştırın (https://...)"
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--color-border)',
+                    color: '#fff',
+                    outline: 'none',
+                    fontSize: '0.85rem'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '0.85rem' }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                className="btn btn-primary"
+                style={{ flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '0.85rem', border: 'none' }}
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

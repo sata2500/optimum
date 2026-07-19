@@ -366,8 +366,6 @@ export default function App() {
             onLogDelete={handleLogDelete}
             pendingLog={pendingLog}
             clearPendingLog={() => setPendingLog(null)}
-            user={user}
-            onNavigateToTab={(tab) => setActiveTab(tab)}
           />
         )}
         {activeTab === 'pomodoro' && <Pomodoro pomodoroState={pomodoro} />}
