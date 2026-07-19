@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build outputs and local tools
+app-debug.apk
+android/jdk21/

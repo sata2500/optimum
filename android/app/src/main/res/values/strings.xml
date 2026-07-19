@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Optimum Flow</string>
+    <string name="title_activity_main">Optimum Flow</string>
+    <string name="package_name">com.optimum.flow</string>
+    <string name="custom_url_scheme">com.optimum.flow</string>
+</resources>
