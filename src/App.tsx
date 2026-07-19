@@ -6,6 +6,8 @@ import { notificationService } from './services/notificationService';
 import { useToast } from './components/Toast';
 import { supabase } from './services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 import OptimumLogo from './components/OptimumLogo';
 import Dashboard from './components/Dashboard';
@@ -33,6 +35,47 @@ export default function App() {
 
 
   const toast = useToast();
+
+  // Listen for Capacitor App Deep Links (Google OAuth Redirects)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const handleAppUrlOpen = async (eventData: any) => {
+      const url = eventData.url;
+      console.log('App opened with URL:', url);
+      
+      if (url.includes('access_token') || url.includes('refresh_token')) {
+        const hashPart = url.split('#')[1];
+        if (hashPart && supabase) {
+          const params = new URLSearchParams(hashPart);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          
+          if (accessToken && refreshToken) {
+            toast.info('Google ile oturum senkronize ediliyor...');
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
+            if (error) {
+              console.error('Deep link setSession error:', error.message);
+              toast.error(`Oturum aktarılamadı: ${error.message}`);
+            } else if (data.user) {
+              setUser(data.user);
+              toast.success('Giriş başarılı! Bulut senkronizasyonu aktif.');
+              triggerSync(data.user);
+            }
+          }
+        }
+      }
+    };
+
+    const listener = CapApp.addListener('appUrlOpen', handleAppUrlOpen);
+
+    return () => {
+      listener.then(l => l.remove());
+    };
+  }, []);
 
   // Supabase Auth State Listener
   useEffect(() => {

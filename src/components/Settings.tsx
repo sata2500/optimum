@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   Plus, Trash2, Edit3, X, Save, AlertTriangle, Settings as SettingsIcon,
   FolderKanban, Download, Upload, Check, Bell, ShieldAlert,
-  Zap
+  Zap, Play
 } from 'lucide-react';
 import type { Category, Activity, AppSettings } from '../services/storageService';
 import type { User } from '@supabase/supabase-js';
@@ -12,6 +12,7 @@ import { notificationService } from '../services/notificationService';
 import { useToast } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
 import { playNotificationSound } from '../utils/audio';
+import { Capacitor } from '@capacitor/core';
 
 interface SettingsProps {
   categories: Category[];
@@ -84,7 +85,7 @@ export default function Settings({
   const [formStart, setFormStart] = useState<string>(settings.startHour);
   const [formEnd, setFormEnd] = useState<string>(settings.endHour);
   const [formNotifications, setFormNotifications] = useState<boolean>(settings.notificationsEnabled);
-  const [formSound] = useState<'modern' | 'classic' | 'soft' | 'silent'>(settings.notificationSound || 'modern');
+  const [formSound, setFormSound] = useState<'modern' | 'classic' | 'soft' | 'silent'>(settings.notificationSound || 'modern');
   const [notifPermission, setNotifPermission] = useState<string>('default');
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
   
@@ -693,31 +694,91 @@ export default function Settings({
                 )}
               </div>
 
-              {/* Install App Promotion for Advanced Notifications */}
-              <div 
-                style={{ 
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.03) 100%)', 
-                  border: '1px solid rgba(99, 102, 241, 0.15)', 
-                  borderRadius: '12px', 
-                  padding: '16px', 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Zap size={15} color="var(--color-primary)" />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>Gelişmiş Bildirim Özellikleri</span>
+              {/* Conditional: Notification Sound Selector for Mobile, Promotion for Web */}
+              {Capacitor.isNativePlatform() ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--color-text-primary)', fontWeight: '700' }}>
+                    Bildirim Sesi Melodisi
+                  </label>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0 }}>
+                    Hatırlatıcı bildirim geldiğinde çalacak melodiyi seçin.
+                  </p>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                    <select
+                      value={formSound}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        setFormSound(val);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--color-border)',
+                        color: '#fff',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="modern" style={{ background: '#0f172a', color: '#fff' }}>Modern Arpej</option>
+                      <option value="classic" style={{ background: '#0f172a', color: '#fff' }}>Klasik Biip</option>
+                      <option value="soft" style={{ background: '#0f172a', color: '#fff' }}>Yumuşak Gong</option>
+                      <option value="silent" style={{ background: '#0f172a', color: '#fff' }}>Sessiz (Sadece Titreşim)</option>
+                    </select>
+                    {formSound !== 'silent' && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          playNotificationSound(formSound);
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid var(--color-border)',
+                          background: 'rgba(255,255,255,0.02)',
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                        title="Sesi Dinle"
+                      >
+                        <Play size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.4' }}>
-                  Kendi <strong>ses kayıtlarınızı</strong> bildirim melodisi olarak kullanmak, özel melodileri etkinleştirmek ve tarayıcınız kapalıyken dahi <strong>%100 zamanında, kesintisiz çevrimdışı bildirimler</strong> almak için Optimum Android uygulamasını indirin.
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
-                    Çok Yakında Android Google Play'de! 📱
-                  </span>
+              ) : (
+                /* Install App Promotion for Advanced Notifications */
+                <div 
+                  style={{ 
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.03) 100%)', 
+                    border: '1px solid rgba(99, 102, 241, 0.15)', 
+                    borderRadius: '12px', 
+                    padding: '16px', 
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Zap size={15} color="var(--color-primary)" />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>Gelişmiş Bildirim Özellikleri</span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                    Kendi <strong>ses kayıtlarınızı</strong> bildirim melodisi olarak kullanmak, özel melodileri etkinleştirmek ve tarayıcınız kapalıyken dahi <strong>%100 zamanında, kesintisiz çevrimdışı bildirimler</strong> almak için Optimum Android uygulamasını indirin.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
+                      Çok Yakında Android Google Play'de! 📱
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Test Notification Button */}
               <button

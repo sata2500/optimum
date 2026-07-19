@@ -2,7 +2,6 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { storageService } from './storageService';
 import { parseTimeToMinutes } from '../utils/timeUtils';
-import { playNotificationSound } from '../utils/audio';
 
 function isTimeInActiveRange(timeMinutes: number, startMin: number, endMin: number): boolean {
   if (endMin >= startMin) {
@@ -139,6 +138,10 @@ export const notificationService = {
 
         if (slots.length === 0) return;
 
+        const soundFile = settings.notificationSound === 'silent'
+          ? undefined
+          : (settings.notificationSound || 'modern') + '.wav';
+
         const notifications = slots.map((slotDate, index) => {
           const slotStr = `${String(slotDate.getHours()).padStart(2, '0')}:${String(slotDate.getMinutes()).padStart(2, '0')}`;
           const dateStr = slotDate.toISOString().split('T')[0];
@@ -148,7 +151,7 @@ export const notificationService = {
             body: `Son dilimde (${slotStr}) ne yaptın? Kaydetmek için dokun.`,
             id: index + 1,
             schedule: { at: slotDate },
-            sound: undefined,
+            sound: soundFile,
             attachments: undefined,
             actionTypeId: '',
             extra: {
@@ -223,8 +226,6 @@ export const notificationService = {
       const dateStr = nextSlot.toISOString().split('T')[0];
 
       try {
-        const settingsObj = storageService.getSettings();
-        playNotificationSound(settingsObj.notificationSound || 'modern');
         let sent = false;
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then(reg => {

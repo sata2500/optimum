@@ -252,7 +252,7 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 24px 16px 24px;
   background: rgba(11, 15, 25, 0.5);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -963,12 +963,6 @@ select option {
   h1, h2, h3, h4, span, p, strong, td, th {
     color: #000000 !important;
   }
-}
-
-/* ── HORIZONTAL SCROLL OVERLAY MASK ── */
-.pills-scroll-wrapper {
-  mask-image: linear-gradient(to right, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
 
 .pills-scroll-wrapper::-webkit-scrollbar {

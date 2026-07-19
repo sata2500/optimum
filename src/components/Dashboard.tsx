@@ -278,50 +278,46 @@ export default function Dashboard({
 
 
 
-  // Check for missed slots in the last 12 hours
+  // Check for missed slots today (up to now)
   useEffect(() => {
     const checkMissed = () => {
       const startMin = parseTimeToMinutes(settings.startHour);
       const endMin = parseTimeToMinutes(settings.endHour);
       const missed: { slot: string; date: string }[] = [];
       const now = new Date();
-      const lookBackMin = 12 * 60; // 12 hours limit
+      const nowMin = now.getHours() * 60 + now.getMinutes();
 
-      for (let i = settings.intervalMinutes; i <= lookBackMin; i += settings.intervalMinutes) {
-        const past = new Date(now.getTime() - i * 60 * 1000);
-        const h = past.getHours();
-        const m = past.getMinutes();
-        const timeMin = h * 60 + m;
+      // Timezone-safe todayStr using local timezone
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
 
-        if (m % settings.intervalMinutes !== 0) continue;
+      const step = getGridIntervalMinutes();
 
-        if (isTimeInActiveRange(timeMin, startMin, endMin)) {
-          const dateStr = past.toISOString().split('T')[0];
-          const todayStr = now.toISOString().split('T')[0];
+      // Loop through all slots today that have already passed and fall within active range
+      for (let timeMin = startMin; timeMin < nowMin && timeMin < endMin; timeMin += step) {
+        const hasLog = logs.some(l => {
+          if (l.date !== todayStr) return false;
+          const logStart = parseTimeToMinutes(l.timeSlot);
+          const duration = l.durationMinutes || step;
+          const logEnd = logStart + duration;
+          return timeMin >= logStart && timeMin < logEnd;
+        });
 
-          if (dateStr === todayStr) {
-            const hasLog = logs.some(l => {
-              if (l.date !== dateStr) return false;
-              const startMin = parseTimeToMinutes(l.timeSlot);
-              const duration = l.durationMinutes || settings.intervalMinutes;
-              const endMin = startMin + duration;
-              return timeMin >= startMin && timeMin < endMin;
-            });
-            if (!hasLog) {
-              const endIntervalMin = timeMin + settings.intervalMinutes;
-              const eh = Math.floor((endIntervalMin % 1440) / 60);
-              const em = (endIntervalMin % 1440) % 60;
-              const slotStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
-              missed.push({ slot: slotStr, date: dateStr });
-            }
-          }
+        if (!hasLog) {
+          const endIntervalMin = timeMin + step;
+          const eh = Math.floor((endIntervalMin % 1440) / 60);
+          const em = (endIntervalMin % 1440) % 60;
+          const slotStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+          missed.push({ slot: slotStr, date: todayStr });
         }
       }
 
       // Chronological sort
       missed.sort((a, b) => {
-        const timeA = parseTimeToMinutes(a.slot) + (a.date === now.toISOString().split('T')[0] ? 1440 : 0);
-        const timeB = parseTimeToMinutes(b.slot) + (b.date === now.toISOString().split('T')[0] ? 1440 : 0);
+        const timeA = parseTimeToMinutes(a.slot);
+        const timeB = parseTimeToMinutes(b.slot);
         return timeA - timeB;
       });
 
@@ -334,13 +330,7 @@ export default function Dashboard({
 
 
 
-  const isTimeInActiveRange = (timeMinutes: number, startMin: number, endMin: number): boolean => {
-    if (endMin >= startMin) {
-      return timeMinutes >= startMin && timeMinutes <= endMin;
-    } else {
-      return timeMinutes >= startMin || timeMinutes <= endMin;
-    }
-  };
+
 
   // Date range calculations
   const getDatesToRender = (): Date[] => {
@@ -370,7 +360,42 @@ export default function Dashboard({
   };
 
   const datesToRender = getDatesToRender();
-  const rawSlots = generateSlots(settings.startHour, settings.endHour, getGridIntervalMinutes());
+
+  // Dynamically expand startHour and endHour if there are logged activities outside settings range
+  const dynamicHours = useMemo(() => {
+    let startMinLimit = parseTimeToMinutes(settings.startHour);
+    let endMinLimit = parseTimeToMinutes(settings.endHour);
+
+    const renderedDateStrings = new Set(datesToRender.map(d => formatDateStr(d)));
+    const intervalVal = getGridIntervalMinutes();
+
+    logs.forEach(log => {
+      if (renderedDateStrings.has(log.date)) {
+        const logStart = parseTimeToMinutes(log.timeSlot);
+        const duration = log.durationMinutes || intervalVal;
+        const logEnd = logStart + duration;
+
+        if (logStart < startMinLimit) {
+          startMinLimit = logStart;
+        }
+        if (logEnd > endMinLimit) {
+          endMinLimit = logEnd;
+        }
+      }
+    });
+
+    const startH = Math.floor(startMinLimit / 60);
+    const startM = startMinLimit % 60;
+    const startStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+
+    const endH = Math.floor(endMinLimit / 60);
+    const endM = endMinLimit % 60;
+    const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+    return { startHour: startStr, endHour: endStr };
+  }, [logs, datesToRender, settings.startHour, settings.endHour, settings.intervalMinutes]);
+
+  const rawSlots = generateSlots(dynamicHours.startHour, dynamicHours.endHour, getGridIntervalMinutes());
   const timeSlots = rawSlots.slice(1);
 
   // Navigate anchor date
@@ -390,7 +415,10 @@ export default function Dashboard({
 
 
   const formatDateStr = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const formatPeriodLabel = (): string => {
@@ -1233,8 +1261,7 @@ export default function Dashboard({
                   (selectedGridActIds.size > 0 && !selectedGridActIds.has(log.activityId))
                 );
 
-                const todayStr = new Date().toISOString().split('T')[0];
-                const isEditable = dateStr === todayStr && !isFuture;
+                const isEditable = !isFuture;
 
                 return (
                   <tr 
@@ -1416,8 +1443,7 @@ export default function Dashboard({
                   const dateStr = formatDateStr(day);
                   const log = getLogForCell(dateStr, slot);
                   const isFuture = day.getTime() + parseTimeToMinutes(slot) * 60 * 1000 > Date.now();
-                  const todayStr = new Date().toISOString().split('T')[0];
-                  const isEditable = dateStr === todayStr && !isFuture;
+                  const isEditable = !isFuture;
                   
                   // Filter visibility check
                   const isFilteredOut = log && (

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import { useToast } from './Toast';
+import { Capacitor } from '@capacitor/core';
 
 interface ProfileProps {
   categories: Category[];
@@ -49,10 +50,14 @@ export default function Profile({ categories, logs, user, onLogout, onBackToDash
 
     setIsLoggingIn(true);
     try {
+      const redirectTo = Capacitor.isNativePlatform()
+        ? 'com.optimum.flow://login'
+        : window.location.origin;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo
         }
       });
       if (error) throw error;
