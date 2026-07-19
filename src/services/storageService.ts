@@ -254,6 +254,27 @@ export const storageService = {
     const logs = this.getLogs();
     const updated = logs.filter(l => l.id !== id);
     this.saveLogs(updated);
+
+    // Track for offline deletion sync
+    const deletedIds = this.getDeletedLogIds();
+    if (!deletedIds.includes(id)) {
+      deletedIds.push(id);
+      this.saveDeletedLogIds(deletedIds);
+    }
+  },
+
+  getDeletedLogIds(): string[] {
+    const data = localStorage.getItem('optimum_flow_deleted_logs');
+    if (!data) return [];
+    try {
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  },
+
+  saveDeletedLogIds(ids: string[]): void {
+    localStorage.setItem('optimum_flow_deleted_logs', JSON.stringify(ids));
   },
 
   clearAllLogs(): void {
@@ -264,6 +285,19 @@ export const storageService = {
   async syncLogsWithCloud(userId: string): Promise<TimeLog[]> {
     if (!supabase) return this.getLogs();
     try {
+      // Process pending cloud deletions first
+      const deletedIds = this.getDeletedLogIds();
+      if (deletedIds.length > 0) {
+        for (const id of deletedIds) {
+          try {
+            await this.deleteLogFromCloud(id, userId);
+          } catch (delErr) {
+            console.error('Failed to sync deletion for ID:', id, delErr);
+          }
+        }
+        this.saveDeletedLogIds([]);
+      }
+
       const { data: cloudLogs, error } = await supabase
         .from('time_logs')
         .select('*')

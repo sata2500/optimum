@@ -50,9 +50,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const hasUnsynced = logs.some(l => !l.synced);
+    const hasUnsyncedLogs = logs.some(l => !l.synced);
+    const hasUnsyncedDeletions = storageService.getDeletedLogIds().length > 0;
+    const hasUnsynced = hasUnsyncedLogs || hasUnsyncedDeletions;
+
     setSyncStatus(hasUnsynced ? 'pending' : 'synced');
-  }, [logs]);
+
+    if (hasUnsynced && user) {
+      const timer = setTimeout(() => {
+        triggerSync(user);
+      }, 1500); // 1.5s debounce auto-sync
+      return () => clearTimeout(timer);
+    }
+  }, [logs, user]);
 
   // Sync function helper
   const triggerSync = async (currentUser = user) => {
@@ -60,7 +70,10 @@ export default function App() {
     setSyncStatus('pending');
     const mergedLogs = await storageService.syncLogsWithCloud(currentUser.id);
     setLogs(mergedLogs);
-    setSyncStatus('synced');
+    
+    const hasUnsyncedLogs = mergedLogs.some(l => !l.synced);
+    const hasUnsyncedDeletions = storageService.getDeletedLogIds().length > 0;
+    setSyncStatus(hasUnsyncedLogs || hasUnsyncedDeletions ? 'pending' : 'synced');
   };
 
   // Sync on user login/auth change + Periodic background sync
@@ -158,7 +171,14 @@ export default function App() {
     setLogs(storageService.getLogs());
 
     if (user) {
-      await storageService.deleteLogFromCloud(id, user.id);
+      try {
+        await storageService.deleteLogFromCloud(id, user.id);
+        const currentQueue = storageService.getDeletedLogIds().filter(q => q !== id);
+        storageService.saveDeletedLogIds(currentQueue);
+      } catch (err) {
+        console.error('Direct cloud delete failed, queued offline:', err);
+      }
+      setLogs(storageService.getLogs()); // trigger sync check
     }
   };
 
@@ -213,15 +233,8 @@ export default function App() {
       await triggerSync(user);
       toast.success('Bulut senkronizasyonu tamamlandı!');
     } else {
-      if (syncStatus === 'pending') {
-        const unsyncedIds = logs.filter(l => !l.synced).map(l => l.id);
-        storageService.markAsSynced(unsyncedIds);
-        setLogs(storageService.getLogs());
-        setSyncStatus('synced');
-        toast.success('Yerel kayıtlar senkronize edildi!');
-      } else {
-        toast.info('Tüm yerel veriler güncel. Bulut yedekleme için Ayarlar\'dan Google ile giriş yapın.');
-      }
+      toast.info('Bulut senkronizasyonu için Google ile giriş yapmanız gerekiyor. Yönlendiriliyorsunuz...');
+      setActiveTab('profile');
     }
   };
 
@@ -229,7 +242,6 @@ export default function App() {
     { key: 'dashboard', label: 'Panel',    icon: LayoutDashboard },
     { key: 'pomodoro',  label: 'Pomodoro', icon: Timer           },
     { key: 'analytics', label: 'Analiz',   icon: BarChart3       },
-    { key: 'profile',   label: 'Profil',   icon: UserIcon        },
     { key: 'settings',  label: 'Ayarlar',  icon: SettingsIcon    },
   ];
 
@@ -256,15 +268,92 @@ export default function App() {
           </span>
         </div>
 
-        {/* Sync Indicator */}
-        <button
-          className="btn btn-secondary"
-          onClick={handleSyncClick}
-          style={{ padding: '8px 14px', borderRadius: '12px', fontSize: '0.85rem' }}
-          title={user ? 'Bulut veritabanıyla senkronize et' : (syncStatus === 'pending' ? 'Yerel kayıtları eşitle.' : 'Yerel veriler güncel.')}
-        >
-          <CloudSync size={18} color={user ? '#22c55e' : (syncStatus === 'pending' ? '#eab308' : '#64748b')} />
-        </button>
+        {/* Sync Indicator and Profile Avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={handleSyncClick}
+            style={{ 
+              padding: '8px 12px', 
+              borderRadius: '12px', 
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid rgba(255,255,255,0.06)'
+            }}
+            title={
+              !user 
+                ? 'Bulut yedekleme aktif değil. Giriş yapmak için tıklayın.' 
+                : (syncStatus === 'pending' 
+                  ? 'Kaydedilmemiş değişiklikleriniz var. Eşitleniyor...' 
+                  : 'Bulut verileriniz güncel ve eşitlendi.')
+            }
+          >
+            <CloudSync 
+              size={18} 
+              color={
+                !user 
+                  ? '#64748b' 
+                  : (syncStatus === 'pending' 
+                    ? '#f97316' 
+                    : '#22c55e')
+              } 
+            />
+          </button>
+
+          {user ? (
+            <button
+              onClick={() => setActiveTab('profile')}
+              style={{
+                background: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 8px rgba(56, 189, 248, 0.2)',
+                border: '1.5px solid var(--color-primary)'
+              }}
+              title="Profiliniz"
+            >
+              {user.user_metadata?.avatar_url ? (
+                <img 
+                  src={user.user_metadata.avatar_url} 
+                  alt="Avatar" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
+              ) : (
+                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #38bdf8 0%, #8b5cf6 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', fontWeight: 'bold' }}>
+                  {(user.user_metadata?.full_name || settings.userName || 'K')[0].toUpperCase()}
+                </div>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="btn btn-primary"
+              style={{ 
+                padding: '6px 14px', 
+                borderRadius: '10px', 
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <UserIcon size={13} />
+              Giriş Yap
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="main-content">
