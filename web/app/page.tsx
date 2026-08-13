@@ -49,7 +49,7 @@ export default function Home() {
 
   // Initialize Google Identity Services
   useEffect(() => {
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '859090591444-gks1ocsevkb8kdcltbeoe24gi5lbo3pd.apps.googleusercontent.com';
+    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '41897653252-cc6ose1e7r8ogab59gnlt1pecp30hj6i.apps.googleusercontent.com';
 
     if (typeof window !== 'undefined' && window.google?.accounts?.id) {
       window.google.accounts.id.initialize({
