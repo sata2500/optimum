@@ -20,6 +20,7 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.tasks.await
 import tech.salev.optimum.data.model.UserProfile
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -127,6 +128,15 @@ class AuthRepository @Inject constructor(
             val task = GoogleSignIn.getSignedInAccountFromIntent(intentData)
             val account = task.getResult(ApiException::class.java)
             if (account != null && account.email != null) {
+                account.idToken?.let { token ->
+                    try {
+                        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(token, null)
+                        com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential).await()
+                    } catch (fe: Exception) {
+                        // Firebase auth log or fallback
+                    }
+                }
+
                 val profile = UserProfile(
                     id = account.id ?: account.email!!,
                     email = account.email!!,
@@ -153,6 +163,16 @@ class AuthRepository @Inject constructor(
             val realEmail = googleIdTokenCredential.id
             val realName = googleIdTokenCredential.displayName ?: realEmail.substringBefore("@")
             val realPhoto = googleIdTokenCredential.profilePictureUri?.toString()
+
+            val idToken = googleIdTokenCredential.idToken
+            if (idToken.isNotEmpty()) {
+                try {
+                    val firebaseCred = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+                    com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(firebaseCred).await()
+                } catch (fe: Exception) {
+                    // Log or handle Firebase Auth exception
+                }
+            }
 
             val profile = UserProfile(
                 id = googleIdTokenCredential.id,

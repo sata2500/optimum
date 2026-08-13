@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "41897653252",
+    "project_id": "optimum-7365",
+    "storage_bucket": "optimum-7365.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:41897653252:android:213f7a2a2ddb883ab73151",
+        "android_client_info": {
+          "package_name": "tech.salev.optimum"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFHIQeYVQBOHKg8U7MzHSxWSiELaRrEmI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

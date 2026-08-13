@@ -6,6 +6,7 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
   alias(libs.plugins.hilt)
+  alias(libs.plugins.google.services)
 }
 
 // Load keystore credentials from local.properties (never committed to VCS)
@@ -21,8 +22,8 @@ android {
         applicationId = "tech.salev.optimum"
         minSdk = 26
         targetSdk = 36
-        versionCode = 36
-        versionName = "1.9.0"
+        versionCode = 37
+        versionName = "2.0.0"
     }
 
     signingConfigs {
@@ -138,6 +139,11 @@ dependencies {
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)
   implementation("com.google.android.gms:play-services-auth:21.2.0")
+
+  // Firebase Auth
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+  implementation(libs.kotlinx.coroutines.play.services)
 
   // Tooling & Testing
   debugImplementation(libs.androidx.compose.ui.tooling)
