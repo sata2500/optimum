@@ -8,9 +8,12 @@
 /captures
 .externalNativeBuild
 .cxx
+# Secrets
 local.properties
 *.jks
 *.keystore
+google-services.json
+**/google-services.json
 
 # Web / Next.js
 web/node_modules
