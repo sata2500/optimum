@@ -33,7 +33,7 @@ class AuthRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
     companion object {
-        private const val DEFAULT_WEB_CLIENT_ID = "859090591444-gks1ocsevkb8kdcltbeoe24gi5lbo3pd.apps.googleusercontent.com"
+        private const val DEFAULT_WEB_CLIENT_ID = "41897653252-cc6ose1e7r8ogab59gnlt1pecp30hj6i.apps.googleusercontent.com"
         private val KEY_IS_LOGGED_IN = booleanPreferencesKey("user_is_logged_in")
         private val KEY_USER_ID = stringPreferencesKey("user_id")
         private val KEY_USER_EMAIL = stringPreferencesKey("user_email")
