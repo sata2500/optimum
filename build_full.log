@@ -1,0 +1,375 @@
+﻿Initialized native services in: C:\Users\salih\.gradle\native
+Initialized jansi services in: C:\Users\salih\.gradle\native
+Removing 0 daemon stop events from registry
+Previous Daemon (34812) stopped at Wed Aug 12 18:17:57 TRT 2026 stop command received
+Previous Daemon (24984) stopped at Wed Aug 12 18:17:57 TRT 2026 stop command received
+Previous Daemon (12128) stopped at Wed Aug 12 18:17:57 TRT 2026 stop command received
+Previous Daemon (30632) stopped at Wed Aug 12 17:26:52 TRT 2026 by user or operating system
+Previous Daemon (13592) stopped at Wed Aug 12 17:28:03 TRT 2026 by user or operating system
+Previous Daemon (5176) stopped at Wed Aug 12 17:51:12 TRT 2026 by user or operating system
+Previous Daemon (35684) stopped at Wed Aug 12 17:53:55 TRT 2026 by user or operating system
+Previous Daemon (19540) stopped at Wed Aug 12 18:12:11 TRT 2026 by user or operating system
+Previous Daemon (31884) stopped at Wed Aug 12 18:14:15 TRT 2026 by user or operating system
+Previous Daemon (22592) stopped at Wed Aug 12 18:15:32 TRT 2026 by user or operating system
+Previous Daemon (19384) stopped at Wed Aug 12 18:15:32 TRT 2026 by user or operating system
+Previous Daemon (20120) stopped at Wed Aug 12 18:16:53 TRT 2026 by user or operating system
+Previous Daemon (38584) stopped at Wed Aug 12 18:17:22 TRT 2026 by user or operating system
+Previous Daemon (2184) stopped at Wed Aug 12 18:17:56 TRT 2026 by user or operating system
+Previous Daemon (38760) stopped at Wed Aug 12 18:17:56 TRT 2026 by user or operating system
+Previous Daemon (23992) stopped at Wed Aug 12 18:17:56 TRT 2026 by user or operating system
+Previous Daemon (36628) stopped at Wed Aug 12 18:21:59 TRT 2026 by user or operating system
+Previous Daemon (36780) stopped at Wed Aug 12 18:21:59 TRT 2026 by user or operating system
+Previous Daemon (16260) stopped at Wed Aug 12 18:21:59 TRT 2026 by user or operating system
+Previous Daemon (2588) stopped at Wed Aug 12 18:26:17 TRT 2026 by user or operating system
+Starting a Gradle Daemon, 3 busy and 20 stopped Daemons could not be reused, use --status for details
+Starting process 'Gradle build daemon'. Working directory: C:\Users\salih\.gradle\daemon\9.1.0 Command: C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot\bin\java.exe --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED -Xmx2048m -Dfile.encoding=UTF-8 -Duser.country=TR -Duser.language=tr -Duser.variant -cp C:\Users\salih\.gradle\wrapper\dists\gradle-9.1.0-bin\9agqghryom9wkf8r80qlhnts3\gradle-9.1.0\lib\gradle-daemon-main-9.1.0.jar -javaagent:C:\Users\salih\.gradle\wrapper\dists\gradle-9.1.0-bin\9agqghryom9wkf8r80qlhnts3\gradle-9.1.0\lib\agents\gradle-instrumentation-agent-9.1.0.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 9.1.0
+Successfully started process 'Gradle build daemon'
+An attempt to start the daemon took 21.496 secs.
+The client will now receive all logging from the daemon (pid: 29368). The daemon log file: C:\Users\salih\.gradle\daemon\9.1.0\daemon-29368.out.log
+Starting build in new daemon [memory: 2 GiB]
+Using 20 worker leases.
+Received JVM installation metadata from 'C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot': {JAVA_HOME=C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot, JAVA_VERSION=17.0.19, JAVA_VENDOR=Microsoft, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=17.0.19+10-LTS, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=17.0.19+10-LTS, VM_VENDOR=Microsoft, OS_ARCH=amd64}
+Watching the file system is configured to be enabled if available
+Now considering [D:\Projelerim\optimum] as hierarchies to watch
+File system watching is active
+Starting Build
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\resourceHashesCache.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\journal-1\file-access.bin
+Resolved plugin [id: 'org.gradle.toolchains.foojay-resolver-convention', version: '1.0.0']
+Settings evaluated using settings file 'D:\Projelerim\optimum\settings.gradle.kts'.
+Using local directory build cache for the root build (location = C:\Users\salih\.gradle\caches\build-cache-1, remove unused entries = after 7 days).
+Projects loaded. Root project using build file 'D:\Projelerim\optimum\build.gradle.kts'.
+Included projects: [root project 'optimum', project ':app']
+
+> Configure project :
+Evaluating root project 'optimum' using build file 'D:\Projelerim\optimum\build.gradle.kts'.
+Resolved plugin [id: 'com.android.application', version: '9.0.1', apply: false]
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.compose', version: '2.0.21', apply: false]
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.serialization', version: '2.0.21', apply: false]
+Resolved plugin [id: 'com.google.devtools.ksp', version: '2.0.21-1.0.27', apply: false]
+Resolved plugin [id: 'com.google.dagger.hilt.android', version: '2.60.1', apply: false]
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\journal-1\file-access.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\kotlinDslCompileAvoidanceClasspathHashCache.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\resourceHashesCache.bin
+
+> Configure project :app
+Evaluating project ':app' using build file 'D:\Projelerim\optimum\app\build.gradle.kts'.
+Resolved plugin [id: 'com.android.application', version: '9.0.1']
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.compose', version: '2.0.21']
+Resolved plugin [id: 'org.jetbrains.kotlin.plugin.serialization', version: '2.0.21']
+Resolved plugin [id: 'com.google.devtools.ksp', version: '2.0.21-1.0.27']
+Resolved plugin [id: 'com.google.dagger.hilt.android', version: '2.60.1']
+WARNING: The option setting 'android.disallowKotlinSourceSets=false' is experimental.
+The current default is 'true'.
+Build 216a63ba-ec1a-4147-ab9b-d1116ad97e87 is started
+Using default execution profile
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\kotlinDslCompileAvoidanceClasspathHashCache.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\9.1.0\fileHashes\resourceHashesCache.bin
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\journal-1\file-access.bin
+Detected Android Gradle Plugin compose compiler configuration
+Detected Android Gradle Plugin compose compiler configuration
+Detected Android Gradle Plugin compose compiler configuration
+Detected Android Gradle Plugin compose compiler configuration
+All projects evaluated.
+Task path ':app:bundleRelease' matched project ':app'
+Task name matched 'bundleRelease'
+Selected primary task 'bundleRelease' from project :app
+.\gradlew : Warning: SDK processing. This version only understands SDK XML versions up to 3 but an SDK XML file of vers
+ion 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were relea
+sed at different times.
+At line:1 char:1
++ .\gradlew :app:bundleRelease --no-configuration-cache --info 2>&1 | O ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Warning: SDK pr...ifferent times.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Tasks to be executed: [task ':app:preBuild', task ':app:preReleaseBuild', task ':app:extractReleaseVersionControlInfo', task ':app:generateReleaseAssets', task ':app:mergeReleaseAssets', task ':app:checkReleaseDuplicateClasses', task ':app:mergeReleaseArtProfile', task ':app:generateReleaseResources', task ':app:packageReleaseResources', task ':app:processReleaseNavigationResources', task ':app:parseReleaseLocalResources', task ':app:generateReleaseRFile', task ':app:kspReleaseKotlin', task ':app:compileReleaseKotlin', task ':app:javaPreCompileRelease', task ':app:compileReleaseJavaWithJavac', task ':app:hiltCollectClassesRelease', task ':app:hiltAggregateDepsRelease', task ':app:hiltJavaCompileRelease', task ':app:checkReleaseAarMetadata', task ':app:compileReleaseNavigationResources', task ':app:mapReleaseSourceSetPaths', task ':app:mergeReleaseResources', task ':app:createReleaseCompatibleScreenManifests', task ':app:extractDeepLinksRelease', task ':app:processReleaseMainManifest', task ':app:processReleaseManifest', task ':app:processReleaseManifestForPackage', task ':app:processReleaseResources', task ':app:transformReleaseClassesWithAsm', task ':app:expandReleaseArtProfileWildcards', task ':app:extractProguardFiles', task ':app:mergeReleaseGeneratedProguardFiles', task ':app:processReleaseJavaRes', task ':app:mergeReleaseJavaResource', task ':app:mergeReleaseStartupProfile', task ':app:minifyReleaseWithR8', task ':app:mergeReleaseJniLibFolders', task ':app:mergeReleaseNativeLibs', task ':app:stripReleaseDebugSymbols', task ':app:writeReleaseAppMetadata', task ':app:buildReleasePreBundle', task ':app:compileReleaseArtProfile', task ':app:collectReleaseDependencies', task ':app:configureReleaseDependencies', task ':app:extractReleaseNativeSymbolTables', task ':app:parseReleaseIntegrityConfig', task ':app:packageReleaseBundle', task ':app:validateSigningRelease', task ':app:signReleaseBundle', task ':app:produceReleaseBundleIdeListingFile', task ':app:createReleaseBundleListingFileRedirect', task ':app:bundleRelease']
+Tasks that were excluded: []
+Resolve mutations for :app:preBuild (Thread[Execution worker Thread 8,5,main]) started.
+:app:preBuild (Thread[included builds,5,main]) started.
+
+> Task :app:preBuild UP-TO-DATE
+Skipping task ':app:preBuild' as it has no actions.
+Resolve mutations for :app:preReleaseBuild (Thread[included builds,5,main]) started.
+:app:preReleaseBuild (Thread[included builds,5,main]) started.
+
+> Task :app:preReleaseBuild UP-TO-DATE
+Skipping task ':app:preReleaseBuild' as it has no actions.
+Resolve mutations for :app:extractReleaseVersionControlInfo (Thread[included builds,5,main]) started.
+:app:extractReleaseVersionControlInfo (Thread[included builds,5,main]) started.
+
+> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\buildOutputCleanup\outputFiles.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Caching disabled for task ':app:extractReleaseVersionControlInfo' because:
+  Caching has been disabled for the task
+Skipping task ':app:extractReleaseVersionControlInfo' as it is up-to-date.
+Resolve mutations for :app:generateReleaseAssets (Thread[included builds,5,main]) started.
+:app:generateReleaseAssets (Thread[included builds,5,main]) started.
+
+> Task :app:generateReleaseAssets UP-TO-DATE
+Skipping task ':app:generateReleaseAssets' as it has no actions.
+Resolve mutations for :app:mergeReleaseAssets (Thread[included builds,5,main]) started.
+:app:mergeReleaseAssets (Thread[included builds,5,main]) started.
+
+> Task :app:mergeReleaseAssets UP-TO-DATE
+Caching disabled for task ':app:mergeReleaseAssets' because:
+  Simple merging task
+Skipping task ':app:mergeReleaseAssets' as it is up-to-date.
+Resolve mutations for :app:checkReleaseDuplicateClasses (Thread[included builds,5,main]) started.
+:app:checkReleaseDuplicateClasses (Thread[included builds,5,main]) started.
+
+> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
+Caching disabled for task ':app:checkReleaseDuplicateClasses' because:
+  Caching has been disabled for the task
+Skipping task ':app:checkReleaseDuplicateClasses' as it is up-to-date.
+Resolve mutations for :app:mergeReleaseArtProfile (Thread[included builds,5,main]) started.
+:app:mergeReleaseArtProfile (Thread[included builds,5,main]) started.
+
+> Task :app:mergeReleaseArtProfile UP-TO-DATE
+Caching disabled for task ':app:mergeReleaseArtProfile' because:
+  Simple merging task
+Skipping task ':app:mergeReleaseArtProfile' as it is up-to-date.
+Resolve mutations for :app:generateReleaseResources (Thread[included builds,5,main]) started.
+:app:generateReleaseResources (Thread[included builds,5,main]) started.
+
+> Task :app:generateReleaseResources UP-TO-DATE
+Build cache key for task ':app:generateReleaseResources' is 07fc0a3d426b1f9abd5275c0e9f8d7ef
+Skipping task ':app:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :app:packageReleaseResources (Thread[included builds,5,main]) started.
+:app:packageReleaseResources (Thread[included builds,5,main]) started.
+
+> Task :app:packageReleaseResources UP-TO-DATE
+Build cache key for task ':app:packageReleaseResources' is 8fd68d3407d3860cb32c9a5d3143c7e8
+Skipping task ':app:packageReleaseResources' as it is up-to-date.
+Resolve mutations for :app:processReleaseNavigationResources (Thread[included builds,5,main]) started.
+:app:processReleaseNavigationResources (Thread[included builds,5,main]) started.
+
+> Task :app:processReleaseNavigationResources UP-TO-DATE
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\journal-1\file-access.bin
+Build cache key for task ':app:processReleaseNavigationResources' is 138fa2ce8bb768ac1a193b3a476237b5
+Skipping task ':app:processReleaseNavigationResources' as it is up-to-date.
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\buildOutputCleanup\outputFiles.bin
+Resolve mutations for :app:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+:app:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :app:parseReleaseLocalResources UP-TO-DATE
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\executionHistory\executionHistory.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Build cache key for task ':app:parseReleaseLocalResources' is f2bbd06a4c010ccbe3b718015e778eef
+Skipping task ':app:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :app:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+:app:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :app:generateReleaseRFile UP-TO-DATE
+Build cache key for task ':app:generateReleaseRFile' is c5dc680f163187088b57e8001b2743a0
+Skipping task ':app:generateReleaseRFile' as it is up-to-date.
+Resolve mutations for :app:kspReleaseKotlin (Thread[Execution worker Thread 2,5,main]) started.
+:app:kspReleaseKotlin (Thread[included builds,5,main]) started.
+
+> Task :app:kspReleaseKotlin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Build cache key for task ':app:kspReleaseKotlin' is a03f0e6e4f8409b63190b4b79fc9513f
+Task ':app:kspReleaseKotlin' is not up-to-date because:
+  Value of input property 'kspConfig.logLevel' has changed for task ':app:kspReleaseKotlin'
+The input changes require a full rebuild for incremental task ':app:kspReleaseKotlin'.
+file or directory 'D:\Projelerim\optimum\app\src\main\kotlin', not found
+file or directory 'D:\Projelerim\optimum\app\src\release\java', not found
+file or directory 'D:\Projelerim\optimum\app\src\release\kotlin', not found
+file or directory 'D:\Projelerim\optimum\app\src\main\kotlin', not found
+file or directory 'D:\Projelerim\optimum\app\src\release\java', not found
+file or directory 'D:\Projelerim\optimum\app\src\release\kotlin', not found
+
+Resolve mutations for :app:javaPreCompileRelease (Thread[Execution worker Thread 18,5,main]) started.
+:app:javaPreCompileRelease (Thread[Execution worker Thread 18,5,main]) started.
+
+> Task :app:javaPreCompileRelease UP-TO-DATE
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\buildOutputCleanup\outputFiles.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\executionHistory\executionHistory.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Build cache key for task ':app:javaPreCompileRelease' is 0cff732a4465420c28a84a6aef82927a
+Skipping task ':app:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :app:checkReleaseAarMetadata (Thread[Execution worker Thread 18,5,main]) started.
+:app:checkReleaseAarMetadata (Thread[Execution worker Thread 18,5,main]) started.
+
+> Task :app:checkReleaseAarMetadata UP-TO-DATE
+Invalidating in-memory cache of C:\Users\salih\.gradle\caches\journal-1\file-access.bin
+Caching disabled for task ':app:checkReleaseAarMetadata' because:
+  Caching has been disabled for the task
+Skipping task ':app:checkReleaseAarMetadata' as it is up-to-date.
+Resolve mutations for :app:compileReleaseNavigationResources (Thread[Execution worker Thread 18,5,main]) started.
+:app:compileReleaseNavigationResources (Thread[Execution worker Thread 19,5,main]) started.
+
+> Task :app:compileReleaseNavigationResources UP-TO-DATE
+Build cache key for task ':app:compileReleaseNavigationResources' is 861c68cc8553d1664461e8c13ac3d11e
+Skipping task ':app:compileReleaseNavigationResources' as it is up-to-date.
+Resolve mutations for :app:mapReleaseSourceSetPaths (Thread[Execution worker Thread 19,5,main]) started.
+:app:mapReleaseSourceSetPaths (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
+Caching disabled for task ':app:mapReleaseSourceSetPaths' because:
+  Caching has been disabled for the task
+Skipping task ':app:mapReleaseSourceSetPaths' as it is up-to-date.
+Resolve mutations for :app:mergeReleaseResources (Thread[Execution worker Thread 17,5,main]) started.
+:app:mergeReleaseResources (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:mergeReleaseResources UP-TO-DATE
+Build cache key for task ':app:mergeReleaseResources' is 3fddceebb1feeebc70063cbc7f77fbef
+Skipping task ':app:mergeReleaseResources' as it is up-to-date.
+Resolve mutations for :app:createReleaseCompatibleScreenManifests (Thread[Execution worker Thread 17,5,main]) started.
+:app:createReleaseCompatibleScreenManifests (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:createReleaseCompatibleScreenManifests UP-TO-DATE
+Caching disabled for task ':app:createReleaseCompatibleScreenManifests' because:
+  Caching has been disabled for the task
+Skipping task ':app:createReleaseCompatibleScreenManifests' as it is up-to-date.
+Resolve mutations for :app:extractDeepLinksRelease (Thread[Execution worker Thread 17,5,main]) started.
+:app:extractDeepLinksRelease (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:extractDeepLinksRelease UP-TO-DATE
+Build cache key for task ':app:extractDeepLinksRelease' is 5d83354a69e6f52402850dfb64ea1f5a
+Skipping task ':app:extractDeepLinksRelease' as it is up-to-date.
+Resolve mutations for :app:processReleaseMainManifest (Thread[Execution worker Thread 17,5,main]) started.
+:app:processReleaseMainManifest (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:kspReleaseKotlin
+i: [ksp] loaded provider(s): [androidx.room.RoomKspProcessor$Provider, dagger.hilt.processor.internal.uninstallmodules.KspUninstallModulesProcessor$Provider, dagger.hilt.processor.internal.aggregateddeps.KspAggregatedDepsProcessor$Provider, dagger.hilt.processor.internal.generatesrootinput.KspGeneratesRootInputProcessor$Provider, dagger.hilt.android.processor.internal.viewmodel.KspViewModelProcessor$Provider, dagger.hilt.processor.internal.originatingelement.KspOriginatingElementProcessor$Provider, dagger.hilt.processor.internal.earlyentrypoint.KspEarlyEntryPointProcessor$Provider, dagger.hilt.processor.internal.aliasof.KspAliasOfProcessor$Provider, dagger.hilt.android.processor.internal.bindvalue.KspBindValueProcessor$Provider, dagger.hilt.processor.internal.definecomponent.KspDefineComponentProcessor$Provider, dagger.hilt.processor.internal.root.KspRootProcessor$Provider, dagger.hilt.android.processor.internal.androidentrypoint.KspAndroidEntryPointProcessor$Provider, dagger.hilt.android.processor.internal.customtestapplication.KspCustomTestApplicationProcessor$Provider, dagger.hilt.processor.internal.root.KspComponentTreeDepsProcessor$Provider, dagger.internal.codegen.KspComponentProcessor$Provider]
+
+> Task :app:processReleaseMainManifest UP-TO-DATE
+Build cache key for task ':app:processReleaseMainManifest' is 260da5319bcbb13a7ad424b0979dadcf
+Skipping task ':app:processReleaseMainManifest' as it is up-to-date.
+Resolve mutations for :app:processReleaseManifest (Thread[Execution worker Thread 17,5,main]) started.
+:app:processReleaseManifest (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:processReleaseManifest UP-TO-DATE
+Build cache key for task ':app:processReleaseManifest' is ccfa77ee004f4445ef0d2e5222e7dd6f
+Skipping task ':app:processReleaseManifest' as it is up-to-date.
+Resolve mutations for :app:processReleaseManifestForPackage (Thread[Execution worker Thread 17,5,main]) started.
+:app:processReleaseManifestForPackage (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:processReleaseManifestForPackage UP-TO-DATE
+Custom actions are attached to task ':app:processReleaseManifestForPackage'.
+Build cache key for task ':app:processReleaseManifestForPackage' is ee11de772a08bfdf285eee9548d5473a
+Skipping task ':app:processReleaseManifestForPackage' as it is up-to-date.
+Resolve mutations for :app:processReleaseResources (Thread[Execution worker Thread 17,5,main]) started.
+:app:processReleaseResources (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:processReleaseResources
+Build cache key for task ':app:processReleaseResources' is abf804c9938d045293783c39f14290d5
+Skipping task ':app:processReleaseResources' as it is up-to-date.
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\buildOutputCleanup\outputFiles.bin
+
+> Task :app:processReleaseResources UP-TO-DATE
+Resolve mutations for :app:extractProguardFiles (Thread[Execution worker Thread 17,5,main]) started.
+:app:extractProguardFiles (Thread[Execution worker Thread 8,5,main]) started.
+
+> Task :app:extractProguardFiles UP-TO-DATE
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\executionHistory\executionHistory.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Caching disabled for task ':app:extractProguardFiles' because:
+  Fast task
+Skipping task ':app:extractProguardFiles' as it is up-to-date.
+Resolve mutations for :app:mergeReleaseStartupProfile (Thread[Execution worker Thread 8,5,main]) started.
+:app:mergeReleaseStartupProfile (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:mergeReleaseStartupProfile UP-TO-DATE
+Caching disabled for task ':app:mergeReleaseStartupProfile' because:
+  Simple merging task
+Skipping task ':app:mergeReleaseStartupProfile' as it is up-to-date.
+Resolve mutations for :app:mergeReleaseJniLibFolders (Thread[Execution worker Thread 17,5,main]) started.
+:app:mergeReleaseJniLibFolders (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':app:mergeReleaseJniLibFolders' because:
+  Simple merging task
+Skipping task ':app:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :app:mergeReleaseNativeLibs (Thread[Execution worker Thread 17,5,main]) started.
+:app:mergeReleaseNativeLibs (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:mergeReleaseNativeLibs UP-TO-DATE
+Caching disabled for task ':app:mergeReleaseNativeLibs' because:
+  Caching has been disabled for the task
+Skipping task ':app:mergeReleaseNativeLibs' as it is up-to-date.
+Resolve mutations for :app:stripReleaseDebugSymbols (Thread[Execution worker Thread 17,5,main]) started.
+:app:stripReleaseDebugSymbols (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:stripReleaseDebugSymbols UP-TO-DATE
+Caching disabled for task ':app:stripReleaseDebugSymbols' because:
+  Caching has been disabled for the task
+Skipping task ':app:stripReleaseDebugSymbols' as it is up-to-date.
+Resolve mutations for :app:writeReleaseAppMetadata (Thread[Execution worker Thread 17,5,main]) started.
+:app:writeReleaseAppMetadata (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:writeReleaseAppMetadata UP-TO-DATE
+Caching disabled for task ':app:writeReleaseAppMetadata' because:
+  Caching has been disabled for the task
+Skipping task ':app:writeReleaseAppMetadata' as it is up-to-date.
+Resolve mutations for :app:collectReleaseDependencies (Thread[Execution worker Thread 17,5,main]) started.
+:app:collectReleaseDependencies (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:collectReleaseDependencies UP-TO-DATE
+Caching disabled for task ':app:collectReleaseDependencies' because:
+  Caching has been disabled for the task
+Skipping task ':app:collectReleaseDependencies' as it is up-to-date.
+Resolve mutations for :app:configureReleaseDependencies (Thread[Execution worker Thread 17,5,main]) started.
+:app:configureReleaseDependencies (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:configureReleaseDependencies UP-TO-DATE
+Caching disabled for task ':app:configureReleaseDependencies' because:
+  Caching has been disabled for the task
+Skipping task ':app:configureReleaseDependencies' as it is up-to-date.
+Resolve mutations for :app:extractReleaseNativeSymbolTables (Thread[Execution worker Thread 17,5,main]) started.
+:app:extractReleaseNativeSymbolTables (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:extractReleaseNativeSymbolTables UP-TO-DATE
+Build cache key for task ':app:extractReleaseNativeSymbolTables' is 79783daef4f4c77321c831f6dd050fe0
+Skipping task ':app:extractReleaseNativeSymbolTables' as it is up-to-date.
+Resolve mutations for :app:parseReleaseIntegrityConfig (Thread[Execution worker Thread 17,5,main]) started.
+:app:parseReleaseIntegrityConfig (Thread[Execution worker Thread 17,5,main]) started.
+
+> Task :app:parseReleaseIntegrityConfig UP-TO-DATE
+Build cache key for task ':app:parseReleaseIntegrityConfig' is 3e17c5e5813f5695bc2d80986a0f8587
+Skipping task ':app:parseReleaseIntegrityConfig' as it is up-to-date.
+Resolve mutations for :app:validateSigningRelease (Thread[Execution worker,5,main]) started.
+:app:validateSigningRelease (Thread[Execution worker,5,main]) started.
+
+> Task :app:validateSigningRelease UP-TO-DATE
+Caching disabled for task ':app:validateSigningRelease' because:
+  Caching has been disabled for the task
+Skipping task ':app:validateSigningRelease' as it is up-to-date.
+
+> Task :app:kspReleaseKotlin
+e: [ksp] java.io.FileNotFoundException: D:\Projelerim\optimum\app\build\kspCaches\release\symbols (Sistem belirtilen yolu bulam²yor)
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\fileHashes.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\9.1.0\fileHashes\resourceHashesCache.bin
+Invalidating in-memory cache of D:\Projelerim\optimum\.gradle\buildOutputCleanup\outputFiles.bin
+
+> Task :app:kspReleaseKotlin FAILED
+Build 216a63ba-ec1a-4147-ab9b-d1116ad97e87 is closed
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:kspReleaseKotlin'.
+> A failure occurred while executing com.google.devtools.ksp.gradle.KspAAWorkerAction
+   > D:\Projelerim\optimum\app\build\kspCaches\release\symbols (Sistem belirtilen yolu bulam²yor)
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4m 36s
+32 actionable tasks: 1 executed, 31 up-to-date
+Watched directory hierarchies: [D:\Projelerim\optimum]

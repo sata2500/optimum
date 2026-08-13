@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Optimum" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Optimum.Transparent" parent="android:Theme.Translucent.NoTitleBar" />
+</resources>
