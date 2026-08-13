@@ -18,7 +18,11 @@ const initialCategories: Category[] = [
   { id: 5, name: 'Sosyal & Aile', color: '#8b5cf6', activityCount: 6 },
 ];
 
-export default function CategoryManager() {
+interface CategoryManagerProps {
+  syncedData?: any;
+}
+
+export default function CategoryManager({ syncedData }: CategoryManagerProps = {}) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3b82f6');

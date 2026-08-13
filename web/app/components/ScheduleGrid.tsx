@@ -30,7 +30,11 @@ const generateInitialLogs = (): TimeLog[] => [
   { id: 7, timeSlot: '15:00 - 17:00', category: 'Çalışma & Kodlama', categoryColor: '#6366f1', activity: 'Web UI Test ve Polaj' },
 ];
 
-export default function ScheduleGrid() {
+interface ScheduleGridProps {
+  syncedData?: any;
+}
+
+export default function ScheduleGrid({ syncedData }: ScheduleGridProps = {}) {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );

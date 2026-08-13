@@ -33,7 +33,11 @@ const weeklyData = [
   { day: 'Paz', calisma: 3.0, spor: 1.5, okuma: 2.5 },
 ];
 
-export default function AnalyticsCharts() {
+interface AnalyticsChartsProps {
+  syncedData?: any;
+}
+
+export default function AnalyticsCharts({ syncedData }: AnalyticsChartsProps = {}) {
   return (
     <div className="space-y-6">
       {/* Top Metric Cards */}

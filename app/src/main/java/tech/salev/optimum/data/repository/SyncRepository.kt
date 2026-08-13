@@ -59,8 +59,27 @@ class SyncRepository @Inject constructor(
                 evaluations = evaluations
             )
 
-            // Convert to JSON string for Web API / Firestore sync
+            // Convert to JSON string for Web API sync
             val payloadJson = json.encodeToString(payload)
+
+            // Push payload to Next.js Vercel Sync Endpoint
+            kotlin.runCatching {
+                val url = java.net.URL("https://optimum-pi-black.vercel.app/api/sync")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json; utf-8")
+                conn.setRequestProperty("Accept", "application/json")
+                conn.doOutput = true
+                conn.connectTimeout = 10000
+                conn.readTimeout = 10000
+
+                conn.outputStream.use { os ->
+                    val input = payloadJson.toByteArray(charset("utf-8"))
+                    os.write(input, 0, input.size)
+                }
+
+                conn.responseCode
+            }
 
             // Update local last sync time
             authRepository.updateLastSyncTime()

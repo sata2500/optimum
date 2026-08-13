@@ -101,47 +101,27 @@ class AuthRepository @Inject constructor(
 
             if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                val realEmail = googleIdTokenCredential.id
+                val realName = googleIdTokenCredential.displayName ?: realEmail.substringBefore("@")
+                val realPhoto = googleIdTokenCredential.profilePictureUri?.toString()
+
                 val profile = UserProfile(
                     id = googleIdTokenCredential.id,
-                    email = googleIdTokenCredential.id, // Email or User ID
-                    displayName = googleIdTokenCredential.displayName ?: googleIdTokenCredential.id.substringBefore("@"),
-                    photoUrl = googleIdTokenCredential.profilePictureUri?.toString(),
+                    email = realEmail,
+                    displayName = realName,
+                    photoUrl = realPhoto,
                     isLoggedIn = true,
                     lastSyncTime = null,
                     isSyncing = false,
-                    syncMessage = "Google hesabı bağlandı"
+                    syncMessage = "Google hesabı bağlandı: $realEmail"
                 )
                 saveUserProfile(profile)
                 Result.success(profile)
             } else {
-                // Fallback for demo/dev if Google Play Services Credential response differs
-                val demoProfile = UserProfile(
-                    id = "user_google_demo",
-                    email = "demo.kullanici@gmail.com",
-                    displayName = "Demo Kullanıcı",
-                    photoUrl = null,
-                    isLoggedIn = true,
-                    lastSyncTime = null,
-                    isSyncing = false,
-                    syncMessage = "Google hesabı bağlandı"
-                )
-                saveUserProfile(demoProfile)
-                Result.success(demoProfile)
+                Result.failure(IllegalStateException("Google hesabı doğrulanamadı. Lütfen tekrar deneyin."))
             }
         } catch (e: GetCredentialException) {
-            // High UX fallback: produce a demo user profile when Play Services API key is unconfigured locally
-            val demoProfile = UserProfile(
-                id = "user_google_account",
-                email = "optimum.kullanici@gmail.com",
-                displayName = "Google Kullanıcısı",
-                photoUrl = null,
-                isLoggedIn = true,
-                lastSyncTime = null,
-                isSyncing = false,
-                syncMessage = "Google hesabı ile giriş yapıldı"
-            )
-            saveUserProfile(demoProfile)
-            Result.success(demoProfile)
+            Result.failure(e)
         } catch (e: Exception) {
             Result.failure(e)
         }
