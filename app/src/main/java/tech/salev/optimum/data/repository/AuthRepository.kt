@@ -130,8 +130,10 @@ class AuthRepository @Inject constructor(
             if (account != null && account.email != null) {
                 account.idToken?.let { token ->
                     try {
-                        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(token, null)
-                        com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential).await()
+                        kotlinx.coroutines.withTimeoutOrNull(5000) {
+                            val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(token, null)
+                            com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential).await()
+                        }
                     } catch (fe: Exception) {
                         // Firebase auth log or fallback
                     }
@@ -167,8 +169,10 @@ class AuthRepository @Inject constructor(
             val idToken = googleIdTokenCredential.idToken
             if (idToken.isNotEmpty()) {
                 try {
-                    val firebaseCred = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-                    com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(firebaseCred).await()
+                    kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        val firebaseCred = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+                        com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(firebaseCred).await()
+                    }
                 } catch (fe: Exception) {
                     // Log or handle Firebase Auth exception
                 }

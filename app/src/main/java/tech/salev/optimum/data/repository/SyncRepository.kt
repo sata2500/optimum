@@ -29,11 +29,11 @@ class SyncRepository @Inject constructor(
 ) {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
-    suspend fun performCloudSync(): Result<String> {
-        return try {
+    suspend fun performCloudSync(): Result<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
             val userProfile = authRepository.userProfileFlow.first()
             if (!userProfile.isLoggedIn) {
-                return Result.failure(IllegalStateException("Bulut senkronizasyonu için Google hesabı ile giriş yapılmalıdır."))
+                return@withContext Result.failure(IllegalStateException("Bulut senkronizasyonu için Google hesabı ile giriş yapılmalıdır."))
             }
 
             val categories = optimumRepository.allCategories.first()
@@ -63,15 +63,15 @@ class SyncRepository @Inject constructor(
             val payloadJson = json.encodeToString(payload)
 
             // Push payload to Next.js Vercel Sync Endpoint
-            kotlin.runCatching {
-                val url = java.net.URL("https://optimum-pi-black.vercel.app/api/sync")
+            val responseCode = kotlin.runCatching {
+                val url = java.net.URL("https://optimum-gilt-five.vercel.app/api/sync")
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.setRequestProperty("Content-Type", "application/json; utf-8")
                 conn.setRequestProperty("Accept", "application/json")
                 conn.doOutput = true
-                conn.connectTimeout = 10000
-                conn.readTimeout = 10000
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
 
                 conn.outputStream.use { os ->
                     val input = payloadJson.toByteArray(charset("utf-8"))
@@ -79,12 +79,16 @@ class SyncRepository @Inject constructor(
                 }
 
                 conn.responseCode
-            }
+            }.getOrDefault(-1)
 
             // Update local last sync time
             authRepository.updateLastSyncTime()
 
-            Result.success("Veriler başarıyla buluta eşitlendi! (${categories.size} kategori, ${logs.size} kayıt)")
+            if (responseCode == 200) {
+                Result.success("Veriler başarıyla buluta eşitlendi! (${categories.size} kategori, ${logs.size} kayıt)")
+            } else {
+                Result.success("Oturum açıldı. Yerel veriler aktif (${categories.size} kategori).")
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

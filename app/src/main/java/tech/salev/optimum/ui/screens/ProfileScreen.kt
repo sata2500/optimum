@@ -49,6 +49,8 @@ fun ProfileScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             profileViewModel.handleLegacySignInResult(result.data)
+        } else {
+            profileViewModel.cancelSignIn()
         }
     }
 

@@ -88,6 +88,13 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    fun cancelSignIn() {
+        _isSyncing.value = false
+        if (_syncStateMessage.value == "Google hesabına bağlanılıyor..." || _syncStateMessage.value == "Google hesabı işleniyor...") {
+            _syncStateMessage.value = "Giriş işlemi tamamlanamadı veya iptal edildi."
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             authRepository.signOut()
