@@ -84,46 +84,67 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun signInWithGoogle(context: Context, webClientId: String? = null): Result<UserProfile> {
+        val serverClientId = webClientId ?: "859090591444-gks1ocsevkb8kdcltbeoe24gi5lbo3pd.apps.googleusercontent.com"
+        val credentialManager = CredentialManager.create(context)
+
+        // Primary attempt: filterByAuthorizedAccounts = false, autoSelectEnabled = false
+        val primaryOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(serverClientId)
+            .setAutoSelectEnabled(false)
+            .build()
+
+        val primaryRequest = GetCredentialRequest.Builder()
+            .addCredentialOption(primaryOption)
+            .build()
+
         return try {
-            val credentialManager = CredentialManager.create(context)
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(webClientId ?: "859090591444-gks1ocsevkb8kdcltbeoe24gi5lbo3pd.apps.googleusercontent.com")
-                .setAutoSelectEnabled(true)
-                .build()
-
-            val request = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
-                .build()
-
-            val result = credentialManager.getCredential(context = context, request = request)
-            val credential = result.credential
-
-            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                val realEmail = googleIdTokenCredential.id
-                val realName = googleIdTokenCredential.displayName ?: realEmail.substringBefore("@")
-                val realPhoto = googleIdTokenCredential.profilePictureUri?.toString()
-
-                val profile = UserProfile(
-                    id = googleIdTokenCredential.id,
-                    email = realEmail,
-                    displayName = realName,
-                    photoUrl = realPhoto,
-                    isLoggedIn = true,
-                    lastSyncTime = null,
-                    isSyncing = false,
-                    syncMessage = "Google hesabı bağlandı: $realEmail"
-                )
-                saveUserProfile(profile)
-                Result.success(profile)
-            } else {
-                Result.failure(IllegalStateException("Google hesabı doğrulanamadı. Lütfen tekrar deneyin."))
-            }
+            val result = credentialManager.getCredential(context = context, request = primaryRequest)
+            processCredentialResult(result.credential)
         } catch (e: GetCredentialException) {
-            Result.failure(e)
+            // Secondary attempt if primary throws NoCredentialException or auto-select error
+            try {
+                val fallbackOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(serverClientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
+
+                val fallbackRequest = GetCredentialRequest.Builder()
+                    .addCredentialOption(fallbackOption)
+                    .build()
+
+                val fallbackResult = credentialManager.getCredential(context = context, request = fallbackRequest)
+                processCredentialResult(fallbackResult.credential)
+            } catch (fallbackEx: Exception) {
+                Result.failure(Exception("Giriş yapılamadı: Cihazınızda kayıtlı etkin bir Google hesabı seçilemedi. (${fallbackEx.localizedMessage})"))
+            }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private suspend fun processCredentialResult(credential: androidx.credentials.Credential): Result<UserProfile> {
+        return if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+            val realEmail = googleIdTokenCredential.id
+            val realName = googleIdTokenCredential.displayName ?: realEmail.substringBefore("@")
+            val realPhoto = googleIdTokenCredential.profilePictureUri?.toString()
+
+            val profile = UserProfile(
+                id = googleIdTokenCredential.id,
+                email = realEmail,
+                displayName = realName,
+                photoUrl = realPhoto,
+                isLoggedIn = true,
+                lastSyncTime = null,
+                isSyncing = false,
+                syncMessage = "Google hesabı bağlandı: $realEmail"
+            )
+            saveUserProfile(profile)
+            Result.success(profile)
+        } else {
+            Result.failure(IllegalStateException("Google hesabı doğrulanamadı. Lütfen tekrar deneyin."))
         }
     }
 }
