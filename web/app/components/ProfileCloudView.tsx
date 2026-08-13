@@ -108,7 +108,7 @@ export default function ProfileCloudView({
             Tüm masaüstü tarayıcılardan kendi Google hesabınızla anında çizelgenize erişebilir, büyük ekranın tadını çıkarabilirsiniz.
           </p>
           <div className="px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs rounded-lg font-mono">
-            https://optimum-pi-black.vercel.app
+            https://optimum-gilt-five.vercel.app
           </div>
         </div>
       </div>
