@@ -1,6 +1,7 @@
 package tech.salev.optimum.data.repository
 
 import android.content.Context
+import android.content.Intent
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -10,6 +11,11 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Task
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +32,7 @@ class AuthRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
     companion object {
+        private const val DEFAULT_WEB_CLIENT_ID = "859090591444-gks1ocsevkb8kdcltbeoe24gi5lbo3pd.apps.googleusercontent.com"
         private val KEY_IS_LOGGED_IN = booleanPreferencesKey("user_is_logged_in")
         private val KEY_USER_ID = stringPreferencesKey("user_id")
         private val KEY_USER_EMAIL = stringPreferencesKey("user_email")
@@ -84,40 +91,56 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun signInWithGoogle(context: Context, webClientId: String? = null): Result<UserProfile> {
-        val serverClientId = webClientId ?: "859090591444-gks1ocsevkb8kdcltbeoe24gi5lbo3pd.apps.googleusercontent.com"
+        val serverClientId = webClientId ?: DEFAULT_WEB_CLIENT_ID
         val credentialManager = CredentialManager.create(context)
 
-        // Primary attempt: filterByAuthorizedAccounts = false, autoSelectEnabled = false
-        val primaryOption = GetGoogleIdOption.Builder()
+        val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
             .setServerClientId(serverClientId)
             .setAutoSelectEnabled(false)
             .build()
 
-        val primaryRequest = GetCredentialRequest.Builder()
-            .addCredentialOption(primaryOption)
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
             .build()
 
         return try {
-            val result = credentialManager.getCredential(context = context, request = primaryRequest)
+            val result = credentialManager.getCredential(context = context, request = request)
             processCredentialResult(result.credential)
-        } catch (e: GetCredentialException) {
-            // Secondary attempt if primary throws NoCredentialException or auto-select error
-            try {
-                val fallbackOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(serverClientId)
-                    .setAutoSelectEnabled(false)
-                    .build()
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
-                val fallbackRequest = GetCredentialRequest.Builder()
-                    .addCredentialOption(fallbackOption)
-                    .build()
+    fun getGoogleSignInIntent(context: Context, webClientId: String? = null): Intent {
+        val serverClientId = webClientId ?: DEFAULT_WEB_CLIENT_ID
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(serverClientId)
+            .requestEmail()
+            .build()
+        val client = GoogleSignIn.getClient(context, gso)
+        return client.signInIntent
+    }
 
-                val fallbackResult = credentialManager.getCredential(context = context, request = fallbackRequest)
-                processCredentialResult(fallbackResult.credential)
-            } catch (fallbackEx: Exception) {
-                Result.failure(Exception("Giriş yapılamadı: Cihazınızda kayıtlı etkin bir Google hesabı seçilemedi. (${fallbackEx.localizedMessage})"))
+    suspend fun processLegacySignInResult(intentData: Intent?): Result<UserProfile> {
+        return try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(intentData)
+            val account = task.getResult(ApiException::class.java)
+            if (account != null && account.email != null) {
+                val profile = UserProfile(
+                    id = account.id ?: account.email!!,
+                    email = account.email!!,
+                    displayName = account.displayName ?: account.email!!.substringBefore("@"),
+                    photoUrl = account.photoUrl?.toString(),
+                    isLoggedIn = true,
+                    lastSyncTime = null,
+                    isSyncing = false,
+                    syncMessage = "Google hesabı bağlandı: ${account.email}"
+                )
+                saveUserProfile(profile)
+                Result.success(profile)
+            } else {
+                Result.failure(Exception("Google hesabına erişilemedi."))
             }
         } catch (e: Exception) {
             Result.failure(e)

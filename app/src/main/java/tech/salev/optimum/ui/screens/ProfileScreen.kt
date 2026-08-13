@@ -1,5 +1,8 @@
 package tech.salev.optimum.ui.screens
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,9 +39,18 @@ import tech.salev.optimum.ui.viewmodel.ProfileViewModel
 fun ProfileScreen(
     profileViewModel: ProfileViewModel
 ) {
+    val context = LocalContext.current
     val userProfile by profileViewModel.userProfile.collectAsStateWithLifecycle()
     val isSyncing by profileViewModel.isSyncing.collectAsStateWithLifecycle()
     val syncMessage by profileViewModel.syncStateMessage.collectAsStateWithLifecycle()
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            profileViewModel.handleLegacySignInResult(result.data)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -115,7 +128,11 @@ fun ProfileScreen(
                         )
 
                         Button(
-                            onClick = { profileViewModel.signInWithGoogle() },
+                            onClick = {
+                                profileViewModel.signInWithGoogle(context) { fallbackIntent ->
+                                    googleSignInLauncher.launch(fallbackIntent)
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp),

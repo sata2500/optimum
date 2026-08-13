@@ -21,8 +21,8 @@ android {
         applicationId = "tech.salev.optimum"
         minSdk = 26
         targetSdk = 36
-        versionCode = 35
-        versionName = "1.8.0"
+        versionCode = 36
+        versionName = "1.9.0"
     }
 
     signingConfigs {
@@ -133,10 +133,11 @@ dependencies {
   // Drag and Drop Reordering
   implementation("sh.calvin.reorderable:reorderable:3.1.0")
 
-  // Google Credential Manager & Identity
+  // Google Credential Manager & Identity & Play Services Auth
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)
+  implementation("com.google.android.gms:play-services-auth:21.2.0")
 
   // Tooling & Testing
   debugImplementation(libs.androidx.compose.ui.tooling)

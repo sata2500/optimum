@@ -1,6 +1,7 @@
 package tech.salev.optimum.ui.viewmodel
 
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,14 +33,39 @@ class ProfileViewModel @Inject constructor(
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-    fun signInWithGoogle(webClientId: String? = null) {
+    fun signInWithGoogle(
+        activityContext: Context,
+        onFallbackNeeded: (Intent) -> Unit
+    ) {
         viewModelScope.launch {
             _isSyncing.value = true
             _syncStateMessage.value = "Google hesabına bağlanılıyor..."
-            val result = authRepository.signInWithGoogle(context, webClientId)
+
+            val result = authRepository.signInWithGoogle(activityContext)
             result.onSuccess { profile ->
                 _syncStateMessage.value = "Hoş geldin, ${profile.displayName}!"
-                // Trigger auto sync after login
+                syncCloudData()
+                _isSyncing.value = false
+            }.onFailure { err ->
+                // Fallback to GoogleSignInClient Intent if CredentialManager throws No credentials available
+                try {
+                    val intent = authRepository.getGoogleSignInIntent(activityContext)
+                    onFallbackNeeded(intent)
+                } catch (fallbackErr: Exception) {
+                    _syncStateMessage.value = "Giriş hatası: ${err.localizedMessage}"
+                    _isSyncing.value = false
+                }
+            }
+        }
+    }
+
+    fun handleLegacySignInResult(intentData: Intent?) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _syncStateMessage.value = "Google hesabı işleniyor..."
+            val result = authRepository.processLegacySignInResult(intentData)
+            result.onSuccess { profile ->
+                _syncStateMessage.value = "Hoş geldin, ${profile.displayName}!"
                 syncCloudData()
             }.onFailure { err ->
                 _syncStateMessage.value = "Giriş hatası: ${err.localizedMessage}"
