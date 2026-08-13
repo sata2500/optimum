@@ -5,10 +5,10 @@ import { neon } from '@neondatabase/serverless';
 const inMemoryStore: Record<string, any> = {};
 
 function getDbClient() {
-  const connectionString =
-    process.env.DATABASE_URL ||
-    'postgresql://neondb_owner:npg_mz0pdnOHZ5SD@ep-soft-voice-ave6pb09-pooler.c-11.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require';
-  return neon(connectionString);
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not defined');
+  }
+  return neon(process.env.DATABASE_URL);
 }
 
 export async function POST(request: Request) {
