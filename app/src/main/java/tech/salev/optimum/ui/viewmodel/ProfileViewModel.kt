@@ -2,6 +2,7 @@ package tech.salev.optimum.ui.viewmodel
 
 import android.content.Context
 import android.content.Intent
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,7 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val syncRepository: SyncRepository,
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val userProfile: StateFlow<UserProfile> = authRepository.userProfileFlow
@@ -47,12 +48,18 @@ class ProfileViewModel @Inject constructor(
                 syncCloudData()
                 _isSyncing.value = false
             }.onFailure { err ->
-                // Fallback to GoogleSignInClient Intent if CredentialManager throws No credentials available
+                if (err is GetCredentialCancellationException) {
+                    _syncStateMessage.value = "Giriş işlemi iptal edildi."
+                    _isSyncing.value = false
+                    return@launch
+                }
+
+                // Fallback to GoogleSignInClient Intent if CredentialManager fails or needs account chooser
                 try {
                     val intent = authRepository.getGoogleSignInIntent(activityContext)
                     onFallbackNeeded(intent)
                 } catch (fallbackErr: Exception) {
-                    _syncStateMessage.value = "Giriş hatası: ${err.localizedMessage}"
+                    _syncStateMessage.value = "Giriş hatası: ${err.localizedMessage ?: "Bilinmeyen hata"}"
                     _isSyncing.value = false
                 }
             }
@@ -68,7 +75,7 @@ class ProfileViewModel @Inject constructor(
                 _syncStateMessage.value = "Hoş geldin, ${profile.displayName}!"
                 syncCloudData()
             }.onFailure { err ->
-                _syncStateMessage.value = "Giriş hatası: ${err.localizedMessage}"
+                _syncStateMessage.value = err.localizedMessage ?: "Giriş işlemi başarısız oldu."
             }
             _isSyncing.value = false
         }
@@ -91,7 +98,7 @@ class ProfileViewModel @Inject constructor(
     fun cancelSignIn() {
         _isSyncing.value = false
         if (_syncStateMessage.value == "Google hesabına bağlanılıyor..." || _syncStateMessage.value == "Google hesabı işleniyor...") {
-            _syncStateMessage.value = "Giriş işlemi tamamlanamadı veya iptal edildi."
+            _syncStateMessage.value = "Giriş işlemi iptal edildi."
         }
     }
 

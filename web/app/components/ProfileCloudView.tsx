@@ -1,7 +1,17 @@
 'use client';
 
 import React from 'react';
-import { Cloud, CheckCircle2, ShieldCheck, Laptop, RefreshCw, Smartphone, Key } from 'lucide-react';
+import {
+  Cloud,
+  CheckCircle2,
+  ShieldCheck,
+  Laptop,
+  RefreshCw,
+  Smartphone,
+  Database,
+  ArrowRight,
+  Sparkles,
+} from 'lucide-react';
 
 interface ProfileCloudViewProps {
   user: {
@@ -26,89 +36,168 @@ export default function ProfileCloudView({
   const categoriesCount = syncedData?.categories?.length || 0;
   const logsCount = syncedData?.logs?.length || 0;
   const lastSyncTime = syncedData?.syncedAt
-    ? new Date(syncedData.syncedAt).toLocaleString('tr-TR')
+    ? new Date(syncedData.syncedAt).toLocaleString('tr-TR', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
     : 'Henüz senkronizasyon yapılmadı';
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="glass-panel p-6 rounded-2xl space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+    <div className="space-y-6 max-w-5xl">
+      {/* User Profile Hero Card */}
+      <div className="dashboard-card p-6 md:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
             {user.isLoggedIn && user.photoUrl ? (
               <img
                 src={user.photoUrl}
                 alt={user.name}
-                className="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500 shadow-lg"
+                className="w-18 h-18 rounded-2xl object-cover border-2 border-indigo-100 shadow-md ring-4 ring-indigo-50"
               />
             ) : (
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-500/30">
+              <div className="w-18 h-18 rounded-2xl bg-gradient-to-tr from-indigo-600 to-sky-500 flex items-center justify-center text-white text-2xl font-bold shadow-md shadow-indigo-500/20">
                 {user.isLoggedIn ? user.name.charAt(0).toUpperCase() : 'G'}
               </div>
             )}
-            <div>
-              <h2 className="text-xl font-bold text-white">
-                {user.isLoggedIn ? user.name : 'Google Hesabı Bağlı Değil'}
-              </h2>
-              <p className="text-xs text-gray-400">
-                {user.isLoggedIn ? user.email : 'Gerçek Google hesabınız ile giriş yaparak verilerinizi eşitleyin'}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-slate-900">
+                  {user.isLoggedIn ? user.name : 'Google Hesabı Bağlı Değil'}
+                </h2>
+                {user.isLoggedIn && (
+                  <span className="px-2.5 py-0.5 bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[11px] font-semibold rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Bağlı</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                {user.isLoggedIn
+                  ? user.email
+                  : 'Google hesabınız ile giriş yaparak telefonunuzdaki verileri bilgisayarınıza eşitleyin.'}
               </p>
             </div>
           </div>
 
-          {user.isLoggedIn ? (
-            <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-full flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Google Hesabı Aktif</span>
-            </span>
-          ) : (
-            <button
-              onClick={onLogin}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl transition shadow-lg shadow-indigo-600/30"
-            >
-              Google ile Giriş Yap
-            </button>
-          )}
+          <div>
+            {user.isLoggedIn ? (
+              <button
+                onClick={onSync}
+                disabled={isSyncing}
+                className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm shadow-indigo-600/20 transition flex items-center justify-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Eşitleniyor...' : 'Verileri Senkronize Et'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={onLogin}
+                className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm shadow-indigo-600/20 transition flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Google ile Giriş Yap</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Cloud Sync Status */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="glass-panel p-5 rounded-2xl space-y-3">
-          <div className="flex items-center gap-3 text-indigo-400 font-bold text-sm">
-            <Cloud className="w-5 h-5" />
-            <span>Bulut Eşitleme Durumu</span>
+      {/* Sync Details & Architecture Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Cloud Sync Database Card */}
+        <div className="dashboard-card p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Neon PostgreSQL Veritabanı</h3>
+              <p className="text-[11px] text-slate-500">Bulut eşitleme altyapısı & kayıt durumu</p>
+            </div>
           </div>
-          <p className="text-xs text-gray-300">
-            Son Senkronizasyon: <span className="font-semibold text-white">{lastSyncTime}</span>
-          </p>
-          <p className="text-xs text-gray-400">
-            {syncedData
-              ? `Android uygulamanızdan ${logsCount} zaman slotu ve ${categoriesCount} kategori senkronize edildi.`
-              : 'Android uygulamanızda "Şimdi Senkronize Et" butonuna basarak verilerinizi buraya aktarabilirsiniz.'}
-          </p>
-          <button
-            onClick={onSync}
-            disabled={isSyncing}
-            className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold text-xs rounded-xl border border-gray-700 transition flex items-center justify-center gap-2"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-400' : ''}`} />
-            <span>Senkronize Verileri Yenile</span>
-          </button>
+
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+              <span className="text-slate-500 font-medium">Son Senkronizasyon:</span>
+              <span className="font-semibold text-slate-800">{lastSyncTime}</span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+              <span className="text-slate-500 font-medium">Kayıtlı Zaman Slotları:</span>
+              <span className="font-semibold text-indigo-700">{logsCount} Slot</span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+              <span className="text-slate-500 font-medium">Aktif Kategoriler:</span>
+              <span className="font-semibold text-slate-800">{categoriesCount} Kategori</span>
+            </div>
+          </div>
         </div>
 
-        <div className="glass-panel p-5 rounded-2xl space-y-3">
-          <div className="flex items-center gap-3 text-purple-400 font-bold text-sm">
-            <Laptop className="w-5 h-5" />
-            <span>Vercel Cloud Deployment</span>
+        {/* Security & Multiplatform Card */}
+        <div className="dashboard-card p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Güvenli & Özel Senkronizasyon</h3>
+              <p className="text-[11px] text-slate-500">Kişisel Google hesabınızla korunan veriler</p>
+            </div>
           </div>
-          <p className="text-xs text-gray-300">
-            Platform: <span className="font-semibold text-white">Next.js App Router + Vercel</span>
+
+          <p className="text-xs text-slate-600 leading-relaxed pt-1">
+            Optimum, zaman çizelgenizi ve değerlendirmelerinizi yalnızca sizin Google hesabınıza özel olarak şifreler ve saklar. Başka hiçbir kullanıcı verilerinize erişemez.
           </p>
-          <p className="text-xs text-gray-400">
-            Tüm masaüstü tarayıcılardan kendi Google hesabınızla anında çizelgenize erişebilir, büyük ekranın tadını çıkarabilirsiniz.
-          </p>
-          <div className="px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs rounded-lg font-mono">
-            https://optimum-gilt-five.vercel.app
+
+          <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1 text-xs">
+            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <Laptop className="w-4 h-4 text-indigo-600" />
+              <span>Masaüstü Web Erişimi</span>
+            </p>
+            <p className="text-slate-500 text-[11px]">
+              Tüm tarayıcılardan Optimum Web Dashboard ile çizelgenizi yönetebilir ve analitiklerinizi inceleyebilirsiniz.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3 Step Onboarding / Pairing Guide */}
+      <div className="dashboard-card p-6 space-y-4">
+        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-indigo-600" />
+          <span>Android Uygulaması ile Nasıl Eşitlenir?</span>
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+            <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
+              1
+            </div>
+            <h4 className="text-xs font-bold text-slate-800">Telefonda Giriş Yap</h4>
+            <p className="text-[11px] text-slate-500">
+              Optimum Android uygulamasında <strong>Profil</strong> sekmesine gidin ve <strong>Google ile Giriş Yap</strong> butonuna basın.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+            <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
+              2
+            </div>
+            <h4 className="text-xs font-bold text-slate-800">Şimdi Senkronize Et</h4>
+            <p className="text-[11px] text-slate-500">
+              Aynı ekrandaki <strong>"Şimdi Senkronize Et"</strong> butonuna basarak tüm verilerinizi buluta aktarın.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+            <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
+              3
+            </div>
+            <h4 className="text-xs font-bold text-slate-800">Büyük Ekranda Yönet</h4>
+            <p className="text-[11px] text-slate-500">
+              Burada aynı Google hesabınızla oturum açtığınızda tüm zaman çizelgeniz anında karşınıza gelecektir.
+            </p>
           </div>
         </div>
       </div>

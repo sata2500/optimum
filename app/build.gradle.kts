@@ -22,19 +22,16 @@ android {
         applicationId = "tech.salev.optimum"
         minSdk = 26
         targetSdk = 36
-        versionCode = 39
-        versionName = "2.0.2"
+        versionCode = 40
+        versionName = "2.0.3"
     }
 
     signingConfigs {
         create("release") {
             storeFile = file("optimum_keystore.jks")
-            storePassword = localProperties.getProperty("OPTIMUM_STORE_PASSWORD")
-                ?: error("OPTIMUM_STORE_PASSWORD not set in local.properties")
-            keyAlias = localProperties.getProperty("OPTIMUM_KEY_ALIAS")
-                ?: error("OPTIMUM_KEY_ALIAS not set in local.properties")
-            keyPassword = localProperties.getProperty("OPTIMUM_KEY_PASSWORD")
-                ?: error("OPTIMUM_KEY_PASSWORD not set in local.properties")
+            storePassword = localProperties.getProperty("OPTIMUM_STORE_PASSWORD") ?: "optimum2026"
+            keyAlias = localProperties.getProperty("OPTIMUM_KEY_ALIAS") ?: "optimum"
+            keyPassword = localProperties.getProperty("OPTIMUM_KEY_PASSWORD") ?: "optimum2026"
         }
     }
 
@@ -47,6 +44,7 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

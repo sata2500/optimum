@@ -47,7 +47,7 @@ fun ProfileScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
+        if (result.resultCode == Activity.RESULT_OK || result.data != null) {
             profileViewModel.handleLegacySignInResult(result.data)
         } else {
             profileViewModel.cancelSignIn()
@@ -279,7 +279,7 @@ fun ProfileScreen(
                             )
                         }
 
-                        Divider()
+                        HorizontalDivider()
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

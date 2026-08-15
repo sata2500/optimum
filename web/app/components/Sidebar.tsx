@@ -1,52 +1,128 @@
 'use client';
 
 import React from 'react';
-import { LayoutGrid, PieChart, Tags, UserCheck, Smartphone } from 'lucide-react';
+import {
+  CalendarDays,
+  BarChart3,
+  Tag,
+  Cloud,
+  Smartphone,
+  Sparkles,
+  ArrowUpRight,
+} from 'lucide-react';
 
 interface SidebarProps {
   activeTab: 'schedule' | 'analytics' | 'categories' | 'profile';
   setActiveTab: (tab: 'schedule' | 'analytics' | 'categories' | 'profile') => void;
+  syncedData?: any;
 }
 
-export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, syncedData }: SidebarProps) {
+  const categoriesCount = syncedData?.categories?.length || 0;
+  const logsCount = syncedData?.logs?.length || 0;
+
   const menuItems = [
-    { id: 'schedule', label: 'Çizelge (Tablo)', icon: LayoutGrid },
-    { id: 'analytics', label: 'Analiz & Değerlendirme', icon: PieChart },
-    { id: 'categories', label: 'Kategoriler', icon: Tags },
-    { id: 'profile', label: 'Profil & Bulut Durumu', icon: UserCheck },
+    {
+      id: 'schedule',
+      label: 'Zaman Çizelgesi',
+      description: 'Günlük slotlar & aktiviteler',
+      icon: CalendarDays,
+      badge: logsCount > 0 ? `${logsCount} kayıt` : undefined,
+    },
+    {
+      id: 'analytics',
+      label: 'Analiz & Değerlendirme',
+      description: 'Verimlilik & grafikler',
+      icon: BarChart3,
+      badge: undefined,
+    },
+    {
+      id: 'categories',
+      label: 'Kategoriler',
+      description: 'Etiketler & renkler',
+      icon: Tag,
+      badge: categoriesCount > 0 ? `${categoriesCount}` : undefined,
+    },
+    {
+      id: 'profile',
+      label: 'Bulut & Senkronizasyon',
+      description: 'Hesap durumu & eşitleme',
+      icon: Cloud,
+      badge: undefined,
+    },
   ] as const;
 
   return (
-    <aside className="w-64 border-r border-gray-800 bg-gray-950/40 p-4 flex flex-col justify-between shrink-0 min-h-[calc(100vh-4rem)]">
-      <div className="space-y-1">
-        <p className="px-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Menü</p>
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition ${
-                isActive
-                  ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-900/60'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-gray-400'}`} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+    <aside className="w-72 border-r border-slate-200 bg-white p-5 flex flex-col justify-between shrink-0 min-h-[calc(100vh-4rem)]">
+      <div className="space-y-6">
+        {/* Section Header */}
+        <div>
+          <p className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+            Ana Menü
+          </p>
+
+          <div className="space-y-1.5">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl font-medium text-xs transition text-left ${
+                    isActive
+                      ? 'bg-indigo-50/80 text-indigo-900 border border-indigo-200/80 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p
+                        className={`font-semibold text-xs leading-tight ${
+                          isActive ? 'text-indigo-950' : 'text-slate-700'
+                        }`}
+                      >
+                        {item.label}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{item.description}</p>
+                    </div>
+                  </div>
+
+                  {item.badge && (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isActive
+                          ? 'bg-indigo-200/60 text-indigo-800'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      <div className="p-3 bg-gradient-to-br from-indigo-950/40 to-purple-950/40 rounded-xl border border-indigo-900/30 text-xs">
-        <div className="flex items-center gap-2 text-indigo-400 font-semibold mb-1">
+      {/* Bottom Sync Info Card */}
+      <div className="p-4 bg-gradient-to-br from-slate-50 to-indigo-50/40 rounded-2xl border border-indigo-100 text-xs space-y-2">
+        <div className="flex items-center gap-2 text-indigo-700 font-semibold">
           <Smartphone className="w-4 h-4" />
-          <span>Android Senkronizasyonu</span>
+          <span>Android ile Eşzamanlı</span>
         </div>
-        <p className="text-gray-400 text-[11px]">
-          Optimum Mobil uygulamasında girdiğiniz tüm veriler anında burada güncellenir.
+        <p className="text-slate-500 text-[11px] leading-relaxed">
+          Telefonda kaydettiğiniz her aktivite Neon PostgreSQL bulut veritabanında anında güncellenir.
         </p>
       </div>
     </aside>

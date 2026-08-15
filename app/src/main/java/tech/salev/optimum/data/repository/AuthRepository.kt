@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -33,6 +34,7 @@ class AuthRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
     companion object {
+        private const val TAG = "AuthRepository"
         private const val DEFAULT_WEB_CLIENT_ID = "41897653252-cc6ose1e7r8ogab59gnlt1pecp30hj6i.apps.googleusercontent.com"
         private val KEY_IS_LOGGED_IN = booleanPreferencesKey("user_is_logged_in")
         private val KEY_USER_ID = stringPreferencesKey("user_id")
@@ -73,7 +75,7 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun updateLastSyncTime() {
-        val sdf = SimpleDateFormat("dd MMMM yyyy HH:mm", Locale("tr"))
+        val sdf = SimpleDateFormat("dd MMMM yyyy HH:mm", Locale.forLanguageTag("tr-TR"))
         val nowStr = sdf.format(Date())
         dataStore.edit { prefs ->
             prefs[KEY_LAST_SYNC] = nowStr
@@ -108,7 +110,10 @@ class AuthRepository @Inject constructor(
         return try {
             val result = credentialManager.getCredential(context = context, request = request)
             processCredentialResult(result.credential)
+        } catch (e: GetCredentialCancellationException) {
+            Result.failure(e)
         } catch (e: Exception) {
+            android.util.Log.w(TAG, "CredentialManager signInWithGoogle failed: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -135,7 +140,7 @@ class AuthRepository @Inject constructor(
                             com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential).await()
                         }
                     } catch (fe: Exception) {
-                        // Firebase auth log or fallback
+                        android.util.Log.w(TAG, "Firebase auth with legacy token failed: ${fe.message}")
                     }
                 }
 
@@ -154,7 +159,19 @@ class AuthRepository @Inject constructor(
             } else {
                 Result.failure(Exception("Google hesabına erişilemedi."))
             }
+        } catch (e: ApiException) {
+            val friendlyMsg = when (e.statusCode) {
+                10 -> "Geliştirici Hatası (10): SHA-1 parmak izi veya OAuth yapılandırması uyuşmuyor."
+                7 -> "Ağ Hatası (7): Google sunucuları ile bağlantı kurulamadı. Lütfen internetinizi kontrol edin."
+                12500 -> "Giriş Hatası (12500): Google Play Hizmetleri hesap doğrulamasını tamamlayamadı."
+                12501 -> "Giriş işlemi iptal edildi."
+                12502 -> "Giriş işlemi devam ediyor."
+                else -> "Google giriş hatası (${e.statusCode}): ${e.localizedMessage ?: "Bilinmeyen hata"}"
+            }
+            android.util.Log.e(TAG, "Legacy Google Sign-In ApiException: ${e.statusCode} - ${e.message}", e)
+            Result.failure(Exception(friendlyMsg, e))
         } catch (e: Exception) {
+            android.util.Log.e(TAG, "processLegacySignInResult failed: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -174,7 +191,7 @@ class AuthRepository @Inject constructor(
                         com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(firebaseCred).await()
                     }
                 } catch (fe: Exception) {
-                    // Log or handle Firebase Auth exception
+                    android.util.Log.w(TAG, "Firebase auth with credential token failed: ${fe.message}")
                 }
             }
 
