@@ -22,8 +22,8 @@ android {
         applicationId = "tech.salev.optimum"
         minSdk = 26
         targetSdk = 36
-        versionCode = 40
-        versionName = "2.0.3"
+        versionCode = 41
+        versionName = "2.0.4"
     }
 
     signingConfigs {
