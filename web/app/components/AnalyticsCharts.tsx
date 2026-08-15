@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   PieChart,
   Pie,
@@ -20,77 +20,148 @@ import {
   Activity,
   Star,
   Clock,
-  CheckCircle2,
   Calendar,
+  Layers,
+  Smile,
+  Meh,
+  Frown,
+  Sparkles,
+  Info,
 } from 'lucide-react';
-
-const defaultCategoryData = [
-  { name: 'Çalışma & Kodlama', value: 45, color: '#4f46e5' },
-  { name: 'Okuma & Eğitim', value: 20, color: '#f59e0b' },
-  { name: 'Spor & Sağlık', value: 15, color: '#10b981' },
-  { name: 'Dinlenme & Mola', value: 12, color: '#ec4899' },
-  { name: 'Sosyal & Aile', value: 8, color: '#8b5cf6' },
-];
-
-const defaultWeeklyData = [
-  { day: 'Pzt', calisma: 6.5, spor: 1.0, okuma: 1.5 },
-  { day: 'Sal', calisma: 7.0, spor: 1.5, okuma: 1.0 },
-  { day: 'Çar', calisma: 8.0, spor: 0.5, okuma: 2.0 },
-  { day: 'Per', calisma: 6.0, spor: 1.0, okuma: 1.5 },
-  { day: 'Cum', calisma: 7.5, spor: 1.0, okuma: 1.0 },
-  { day: 'Cmt', calisma: 4.0, spor: 2.0, okuma: 3.0 },
-  { day: 'Paz', calisma: 3.5, spor: 1.5, okuma: 2.5 },
-];
 
 interface AnalyticsChartsProps {
   syncedData?: any;
 }
 
 export default function AnalyticsCharts({ syncedData }: AnalyticsChartsProps) {
-  // Extract category distribution from synced logs if available
-  const categoryData = React.useMemo(() => {
-    if (syncedData?.logs && Array.isArray(syncedData.logs) && syncedData.logs.length > 0) {
-      const counts: Record<string, number> = {};
-      syncedData.logs.forEach((log: any) => {
-        const cat = log.category || 'Genel';
-        counts[cat] = (counts[cat] || 0) + 1;
+  const logs = useMemo(() => syncedData?.logs || [], [syncedData]);
+  const evaluations = useMemo(() => syncedData?.evaluations || [], [syncedData]);
+  const categories = useMemo(() => syncedData?.categories || [], [syncedData]);
+
+  // Categories lookup map for colors
+  const categoriesMap = useMemo(() => {
+    const map: Record<string | number, { name: string; color: string }> = {};
+    if (Array.isArray(categories)) {
+      categories.forEach((cat: any) => {
+        map[cat.id] = {
+          name: cat.name,
+          color: cat.colorHex || cat.color || '#4f46e5',
+        };
+        map[cat.name] = {
+          name: cat.name,
+          color: cat.colorHex || cat.color || '#4f46e5',
+        };
       });
-
-      const total = syncedData.logs.length;
-      const palette = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#0ea5e9'];
-      return Object.entries(counts).map(([name, count], index) => ({
-        name,
-        value: Math.round((count / total) * 100),
-        color: palette[index % palette.length],
-      }));
     }
-    return defaultCategoryData;
-  }, [syncedData]);
+    return map;
+  }, [categories]);
 
-  const totalLogs = syncedData?.logs?.length || 128;
-  const evaluations = syncedData?.evaluations || [];
+  // 1. Compute Category Distribution from REAL logs
+  const categoryDistribution = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+
+    const counts: Record<string, { count: number; color: string }> = {};
+    logs.forEach((log: any) => {
+      const catInfo = categoriesMap[log.categoryId] || categoriesMap[log.category] || {
+        name: log.category || 'Genel',
+        color: '#4f46e5',
+      };
+      const catName = catInfo.name;
+      if (!counts[catName]) {
+        counts[catName] = { count: 0, color: catInfo.color };
+      }
+      counts[catName].count += 1;
+    });
+
+    const total = logs.length;
+    return Object.entries(counts).map(([name, data]) => ({
+      name,
+      value: Math.round((data.count / total) * 100),
+      rawCount: data.count,
+      color: data.color,
+    }));
+  }, [logs, categoriesMap]);
+
+  // 2. Compute Weekly / Daily Volume from REAL logs
+  const volumeData = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+
+    // Group logs by date (last 7 recorded dates or current week)
+    const dateGroups: Record<string, number> = {};
+    logs.forEach((log: any) => {
+      const logDate = log.date || log.createdAt?.split('T')[0] || log.syncedAt?.split('T')[0];
+      if (logDate) {
+        dateGroups[logDate] = (dateGroups[logDate] || 0) + 1; // Each slot = 0.5 hour or 1 slot
+      }
+    });
+
+    return Object.entries(dateGroups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-7)
+      .map(([date, count]) => {
+        const d = new Date(date);
+        const dayName = d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'numeric' });
+        return {
+          date: dayName,
+          fullDate: date,
+          saat: +(count * 0.5).toFixed(1), // Hours
+          slotSayisi: count,
+        };
+      });
+  }, [logs]);
+
+  // 3. Compute Real KPI Metrics
+  const totalSlots = logs.length;
+  const totalHours = (totalSlots * 0.5).toFixed(1);
+  const avgRating = useMemo(() => {
+    if (evaluations.length === 0) return 0;
+    const sum = evaluations.reduce((acc: number, curr: any) => acc + (curr.rating || 0), 0);
+    return (sum / evaluations.length).toFixed(1);
+  }, [evaluations]);
+
+  const topCategory = categoryDistribution[0]?.name || 'Henüz Yok';
+
+  // Mood helper
+  const renderMoodIcon = (mood: number) => {
+    switch (mood) {
+      case 4:
+        return <span className="text-sm">🤩 Harika</span>;
+      case 3:
+        return <span className="text-sm">😊 İyi</span>;
+      case 2:
+        return <span className="text-sm">😐 Nötr</span>;
+      case 1:
+        return <span className="text-sm">😞 Düşük</span>;
+      default:
+        return null;
+    }
+  };
+
+  const hasData = totalSlots > 0 || evaluations.length > 0;
 
   return (
     <div className="space-y-6">
-      {/* Page Title */}
+      {/* Title */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">
           Verimlilik & Analiz Raporu
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Zamanınızı nereye harcadığınızı, odaklanma sürelerinizi ve haftalık hedeflerinizi inceleyin.
+          Android uygulamanızdan eşitlenen gerçek zaman verileriniz ve öz değerlendirmeleriniz
         </p>
       </div>
 
-      {/* 4 Key Metric KPI Cards */}
+      {/* 4 Real KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Toplam Odak Süresi */}
         <div className="dashboard-card p-5 flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-medium text-slate-500">Haftalık Odak Süresi</p>
-            <h3 className="text-2xl font-bold text-slate-900">42.5 Saat</h3>
-            <span className="inline-flex items-center text-[11px] font-semibold text-emerald-600">
-              <TrendingUp className="w-3 h-3 mr-1" /> %14 Geçen Haftaya Göre
+            <p className="text-xs font-medium text-slate-500">Toplam Odaklanma</p>
+            <h3 className="text-2xl font-bold text-slate-900">
+              {totalSlots > 0 ? `${totalHours} Saat` : '0 Saat'}
+            </h3>
+            <span className="text-[11px] font-semibold text-indigo-600">
+              {totalSlots} Kayıtlı Slot
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
@@ -98,52 +169,56 @@ export default function AnalyticsCharts({ syncedData }: AnalyticsChartsProps) {
           </div>
         </div>
 
-        {/* KPI 2: Verimlilik Skoru */}
+        {/* KPI 2: Ortalama Değerlendirme Puanı */}
         <div className="dashboard-card p-5 flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-medium text-slate-500">Verimlilik Skoru</p>
-            <h3 className="text-2xl font-bold text-slate-900">8.9 / 10</h3>
-            <span className="inline-flex items-center text-[11px] font-semibold text-emerald-600">
-              <CheckCircle2 className="w-3 h-3 mr-1" /> Yüksek Performans
-            </span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-            <Award className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* KPI 3: Tamamlanan Slotlar */}
-        <div className="dashboard-card p-5 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-slate-500">Kayıtlı Aktivite</p>
-            <h3 className="text-2xl font-bold text-slate-900">{totalLogs} Slot</h3>
-            <span className="inline-flex items-center text-[11px] font-semibold text-indigo-600">
-              <Activity className="w-3 h-3 mr-1" /> Güncel Ay
-            </span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
-            <Zap className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* KPI 4: En Çok Yapılan */}
-        <div className="dashboard-card p-5 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-slate-500">En Aktif Alan</p>
-            <h3 className="text-base font-bold text-slate-900 truncate max-w-[140px]">
-              Çalışma & Kodlama
+            <p className="text-xs font-medium text-slate-500">Ort. Günlük Puan</p>
+            <h3 className="text-2xl font-bold text-slate-900">
+              {+avgRating > 0 ? `${avgRating} / 5` : '-'}
             </h3>
-            <span className="inline-flex items-center text-[11px] font-semibold text-amber-600">
-              <Star className="w-3 h-3 mr-1" /> %45 Toplam Pay
+            <span className="text-[11px] font-semibold text-amber-600">
+              {evaluations.length} Değerlendirme
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+            <Star className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* KPI 3: Aktif Kategori Sayısı */}
+        <div className="dashboard-card p-5 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-slate-500">Tanımlı Kategori</p>
+            <h3 className="text-2xl font-bold text-slate-900">
+              {categories.length} Kategori
+            </h3>
+            <span className="text-[11px] font-semibold text-emerald-600">
+              {syncedData?.activities?.length || 0} Aktif Aktivite
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+            <Layers className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* KPI 4: En Çok Zaman Ayrılan Kategori */}
+        <div className="dashboard-card p-5 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-slate-500">En Çok Zaman Ayrılan</p>
+            <h3 className="text-sm font-bold text-slate-900 truncate max-w-[140px]" title={topCategory}>
+              {topCategory}
+            </h3>
+            <span className="text-[11px] font-semibold text-sky-600">
+              {categoryDistribution[0] ? `%${categoryDistribution[0].value} Pay` : 'Kayıt Yok'}
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
             <TrendingUp className="w-6 h-6" />
           </div>
         </div>
       </div>
 
-      {/* Charts Grid */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Category Breakdown Donut Chart */}
         <div className="dashboard-card p-6 space-y-4">
@@ -151,117 +226,131 @@ export default function AnalyticsCharts({ syncedData }: AnalyticsChartsProps) {
             <h3 className="text-base font-bold text-slate-900">
               Kategori Zaman Dağılımı (%)
             </h3>
-            <p className="text-xs text-slate-500">Aktivitelerinizin kategorilere göre yüzdelik oranları</p>
+            <p className="text-xs text-slate-500">Telefonunuzda kaydettiğiniz aktivitelerin yüzdelik oranları</p>
           </div>
 
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={65}
-                  outerRadius={95}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: any) => [`%${value}`, 'Oran']}
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e2e8f0',
-                    borderRadius: '0.75rem',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                  }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  formatter={(value) => (
-                    <span className="text-xs text-slate-700 font-medium">{value}</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {categoryDistribution.length > 0 ? (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={95}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {categoryDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: any) => [`%${value}`, 'Oran']}
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      borderColor: '#e2e8f0',
+                      borderRadius: '0.75rem',
+                      fontSize: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value) => (
+                      <span className="text-xs text-slate-700 font-medium">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-72 flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-2">
+              <Activity className="w-8 h-8 text-slate-400" />
+              <p className="text-xs font-semibold text-slate-700">Henüz Kategori Verisi Yok</p>
+              <p className="text-[11px] text-slate-500 max-w-xs">
+                Telefonunuzdan aktivitelerinizi kaydettikten sonra 'Şimdi Senkronize Et' dediğinizde grafik otomatik oluşacaktır.
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Weekly Activity Volume Bar Chart */}
+        {/* Daily Volume Bar Chart */}
         <div className="dashboard-card p-6 space-y-4">
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              Haftalık Aktivite Hacmi (Saat)
+              Günlük Aktivite Hacmi (Saat)
             </h3>
-            <p className="text-xs text-slate-500">Günlere göre harcanan toplam odak süreleri</p>
+            <p className="text-xs text-slate-500">Günlere göre tamamlanan çalışma ve aktivite süreleri</p>
           </div>
 
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={defaultWeeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis
-                  dataKey="day"
-                  stroke="#94a3b8"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={{ stroke: '#e2e8f0' }}
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={{ stroke: '#e2e8f0' }}
-                />
-                <Tooltip
-                  formatter={(value: any) => [`${value} Saat`, '']}
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e2e8f0',
-                    borderRadius: '0.75rem',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                  }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  formatter={(value) => (
-                    <span className="text-xs text-slate-700 font-medium capitalize">
-                      {value === 'calisma' ? 'Çalışma' : value === 'spor' ? 'Spor' : 'Okuma'}
-                    </span>
-                  )}
-                />
-                <Bar dataKey="calisma" fill="#4f46e5" radius={[4, 4, 0, 0]} name="calisma" />
-                <Bar dataKey="okuma" fill="#f59e0b" radius={[4, 4, 0, 0]} name="okuma" />
-                <Bar dataKey="spor" fill="#10b981" radius={[4, 4, 0, 0]} name="spor" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {volumeData.length > 0 ? (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={volumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis
+                    dataKey="date"
+                    stroke="#94a3b8"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                  />
+                  <Tooltip
+                    formatter={(value: any) => [`${value} Saat`, 'Odak Süresi']}
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      borderColor: '#e2e8f0',
+                      borderRadius: '0.75rem',
+                      fontSize: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                  />
+                  <Bar dataKey="saat" fill="#4f46e5" radius={[6, 6, 0, 0]} name="Odak Süresi (Saat)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-72 flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-2">
+              <Clock className="w-8 h-8 text-slate-400" />
+              <p className="text-xs font-semibold text-slate-700">Henüz Günlük Kayıt Yok</p>
+              <p className="text-[11px] text-slate-500 max-w-xs">
+                Aktivite kayıtlarınız eşitlendiğinde günlere göre çalışma hacminiz burada listelenecektir.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Daily Evaluations Section */}
+      {/* Daily Evaluations Section (REAL USER DATA ONLY) */}
       <div className="dashboard-card p-6 space-y-4">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">
-            Günlük Öz Değerlendirmeler & Puanlar
-          </h3>
-          <p className="text-xs text-slate-500">
-            Android uygulamasında her günün sonunda girdiğiniz puanlar ve değerlendirme notları
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Günlük Öz Değerlendirmeler & Puanlar
+            </h3>
+            <p className="text-xs text-slate-500">
+              Android uygulamanızda her günün sonunda verdiğiniz yıldız puanları ve değerlendirme notlarınız
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+            {evaluations.length} Kayıtlı Gün
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {evaluations.length > 0 ? (
-            evaluations.slice(0, 6).map((evalItem: any, idx: number) => (
-              <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+        {evaluations.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {evaluations.map((evalItem: any, idx: number) => (
+              <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-indigo-600" />
                     {evalItem.date}
                   </span>
@@ -270,78 +359,34 @@ export default function AnalyticsCharts({ syncedData }: AnalyticsChartsProps) {
                       <Star
                         key={i}
                         className={`w-3.5 h-3.5 ${
-                          i < (evalItem.rating || 5) ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
+                          i < (evalItem.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
                         }`}
                       />
                     ))}
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {evalItem.summary || evalItem.notes || 'Günün hedefleri başarıyla tamamlandı.'}
-                </p>
-              </div>
-            ))
-          ) : (
-            <>
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                    Bugün
-                  </span>
-                  <div className="flex items-center gap-0.5 text-amber-400">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Tüm çalışma blokları planlandığı gibi tamamlandı. Odaklanma seviyesi çok yüksek bir gündü.
-                </p>
-              </div>
 
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                    Dün
-                  </span>
-                  <div className="flex items-center gap-0.5 text-amber-400">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 text-slate-300" />
+                {evalItem.mood && evalItem.mood > 0 && (
+                  <div className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                    <span>Mod:</span> {renderMoodIcon(evalItem.mood)}
                   </div>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Öğleden sonraki toplantılar planı biraz aksattı ancak akşam saatlerinde telafi edildi.
-                </p>
-              </div>
+                )}
 
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                    2 Gün Önce
-                  </span>
-                  <div className="flex items-center gap-0.5 text-amber-400">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                  </div>
-                </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Spor ve çalışma dengesi kusursuzdu. Enerji seviyesi gün boyu yüksek kaldı.
+                  {evalItem.journalNote || evalItem.summary || evalItem.notes || 'Değerlendirme notu girilmemiş.'}
                 </p>
               </div>
-            </>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
+            <Star className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="text-xs font-semibold text-slate-700">Henüz Günlük Değerlendirme Girilmemiş</p>
+            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+              Optimum Android uygulamasında "Analiz & Değerlendirme" sekmesinden günlerinize yıldız verip not eklediğinizde ve senkronize ettiğinizde tüm değerlendirmeleriniz burada görünecektir.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
