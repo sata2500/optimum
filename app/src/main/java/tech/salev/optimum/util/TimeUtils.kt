@@ -35,5 +35,22 @@ object TimeUtils {
             !current.isBefore(start) || !current.isAfter(end)
         }
     }
+
+    /**
+     * Checks if a grid slot [slotStart, slotEnd) overlaps with a logged entry [logStart, logEnd).
+     * Two intervals [A, B) and [C, D) overlap if A < D and C < B.
+     * Treats "00:00" as end of day ("24:00") when it represents the closing boundary.
+     */
+    fun isTimeSlotOverlapping(
+        slotStart: String,
+        slotEnd: String,
+        logStart: String,
+        logEnd: String
+    ): Boolean {
+        val effectiveSlotEnd = if (slotEnd == "00:00" && slotStart > "00:00") "24:00" else slotEnd
+        val effectiveLogEnd = if (logEnd == "00:00" && logStart > "00:00") "24:00" else logEnd
+
+        return logStart < effectiveSlotEnd && slotStart < effectiveLogEnd
+    }
 }
 

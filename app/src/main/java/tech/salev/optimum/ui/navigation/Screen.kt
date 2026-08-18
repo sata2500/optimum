@@ -4,7 +4,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import kotlinx.serialization.Serializable
@@ -32,11 +31,6 @@ sealed class Screen {
     data object Analytics : Screen() {
         override val title = "Analiz"
         override val icon = Icons.Default.Analytics
-    }
-    @Serializable
-    data object Profile : Screen() {
-        override val title = "Profil & Bulut"
-        override val icon = Icons.Default.Person
     }
     @Serializable
     data object Settings : Screen() {

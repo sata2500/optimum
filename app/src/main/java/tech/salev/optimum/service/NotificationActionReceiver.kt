@@ -30,10 +30,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 when (intent.action) {
                     "TRIGGER_REMINDER" -> {
                         if (settingsRepository.isNotificationsEnabled.first()) {
-                            val intervalMinutes = intent.getIntExtra("INTERVAL_MINUTES", 30)
+                            val intervalMinutes = settingsRepository.intervalMinutes.first()
                             
                             // AlarmManager'ın döngüsel çalışması için bir sonraki periyodu her şeyden ÖNCE kuruyoruz.
-                            // Sistem coroutine'i delay esnasında uyutursa alarm döngüsü kırılmasın!
                             ReminderScheduler.schedulePeriodicReminder(context, intervalMinutes)
                             
                             val startStr = settingsRepository.dayStartTime.first()
@@ -44,9 +43,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                             val now = java.time.LocalTime.now()
                             
                             if (tech.salev.optimum.util.TimeUtils.isTimeInRange(now, start, end)) {
-                                // Kullanıcının isteği: "5 saniye önce eski bildirim tamamen yok olur ve yeni bildirim kusursuz çalışır"
                                 NotificationHelper.cancelLastNotification(context)
-                                kotlinx.coroutines.delay(5000)
                                 NotificationHelper.showReminderNotification(context, intervalMinutes)
                             }
                         }

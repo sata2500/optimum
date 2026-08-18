@@ -2,12 +2,16 @@ package tech.salev.optimum.data.model
 
 import androidx.compose.runtime.Immutable
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 @Serializable
 @Immutable
-@Entity(tableName = "time_slot_logs")
+@Entity(
+    tableName = "time_slot_logs",
+    indices = [Index("date")] // Performans: getLogsForDate / getLogsBetweenDates sorguları için
+)
 data class TimeSlotLog(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

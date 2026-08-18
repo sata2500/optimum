@@ -17,17 +17,20 @@ import tech.salev.optimum.data.repository.SettingsRepository
 
 object NotificationHelper {
     const val CHANNEL_ID = "optimum_reminders_channel_v2"
+    const val SILENT_CHANNEL_ID = "optimum_silent_reminders_channel_v3"
     const val CHANNEL_NAME = "Optimum Zaman Takip Hatırlatıcıları"
+    const val SILENT_CHANNEL_NAME = "Optimum Sessiz Hatırlatıcılar (Görsel Uyarı)"
     const val DEFAULT_NOTIFICATION_ID = 1001
 
     const val ACTION_OPEN_LOG = "tech.salev.optimum.ACTION_OPEN_LOG"
     const val ACTION_SNOOZE = "tech.salev.optimum.ACTION_SNOOZE"
 
     /**
-     * Returns the active channel ID based on the custom ringtone setting.
+     * Returns the active channel ID based on silent mode and custom ringtone setting.
      * Must be called from a coroutine (suspend).
      */
-    private suspend fun getChannelId(context: Context): String {
+    private suspend fun getChannelId(context: Context, isSilent: Boolean): String {
+        if (isSilent) return SILENT_CHANNEL_ID
         val uriStr = context.dataStore.data
             .map { it[SettingsRepository.KEY_CUSTOM_RINGTONE] }
             .first()
@@ -44,7 +47,7 @@ object NotificationHelper {
                 val notificationManager =
                     context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notificationChannels.forEach {
-                    if (it.id.startsWith(CHANNEL_ID)) {
+                    if (it.id.startsWith(CHANNEL_ID) || it.id.startsWith("optimum_silent_reminders_channel")) {
                         notificationManager.deleteNotificationChannel(it.id)
                     }
                 }
@@ -71,6 +74,7 @@ object NotificationHelper {
         context: Context,
         notificationManager: NotificationManager
     ) {
+        // Standard Channel
         val uriStr = context.dataStore.data
             .map { it[SettingsRepository.KEY_CUSTOM_RINGTONE] }
             .first()
@@ -95,6 +99,20 @@ object NotificationHelper {
             }
         }
         notificationManager.createNotificationChannel(channel)
+
+        // Silent Channel (Must be IMPORTANCE_HIGH so Android executes FullScreenIntent & wakes screen, but with null sound & no vibration)
+        val silentChannel = NotificationChannel(
+            SILENT_CHANNEL_ID,
+            SILENT_CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Optimum sessiz ve görsel renkli aktivite kaydı hatırlatıcıları"
+            enableVibration(false)
+            vibrationPattern = longArrayOf(0)
+            setSound(null, null)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        }
+        notificationManager.createNotificationChannel(silentChannel)
     }
 
     /**
@@ -107,14 +125,23 @@ object NotificationHelper {
 
             val prefs = context.dataStore.data.first()
             val isLongRingtoneEnabled = prefs[SettingsRepository.KEY_LONG_RINGTONE] ?: false
-            val activeChannelId = getChannelId(context)
+            val isSilentEnabled = prefs[SettingsRepository.KEY_SILENT_NOTIFICATION] ?: false
+            val alertColorHex = prefs[SettingsRepository.KEY_SILENT_ALERT_COLOR] ?: SettingsRepository.DEFAULT_SILENT_ALERT_COLOR
+            val activeChannelId = getChannelId(context, isSilentEnabled)
+
+            val parsedColor = try {
+                android.graphics.Color.parseColor(alertColorHex)
+            } catch (e: Exception) {
+                android.graphics.Color.parseColor("#D4AF37")
+            }
 
             // Content intent → opens QuickLogActivity (Modal)
             val openIntent = Intent(
                 context,
                 tech.salev.optimum.QuickLogActivity::class.java
             ).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("IS_VISUAL_ALERT", isSilentEnabled)
             }
             val openPendingIntent = PendingIntent.getActivity(
                 context,
@@ -144,12 +171,10 @@ object NotificationHelper {
 
             val builder = NotificationCompat.Builder(context, activeChannelId)
                 .setSmallIcon(tech.salev.optimum.R.drawable.ic_stat_optimum)
-                .setColor(android.graphics.Color.parseColor("#D4AF37"))
+                .setColor(parsedColor)
                 .setContentTitle("Optimum Zaman Kaydı ⏱️")
                 .setContentText("Son $intervalMinutes dakikanız nasıl geçti? Zamanınızı kaydedin.")
                 .setStyle(bigTextStyle)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setAutoCancel(true)
                 .setContentIntent(openPendingIntent)
                 .addAction(
@@ -163,13 +188,49 @@ object NotificationHelper {
                     snoozePendingIntent
                 )
 
-            if (isLongRingtoneEnabled) {
-                builder.setTimeoutAfter(60_000L) // 1 dakika
+            if (isSilentEnabled) {
+                builder.setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setFullScreenIntent(openPendingIntent, true)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setSilent(true)
+                    .setDefaults(0)
+                    .setVibrate(longArrayOf(0))
+                    .setSound(null)
+
+                // Wake up screen physically if locked
+                try {
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    @Suppress("DEPRECATION")
+                    val wakeLock = powerManager.newWakeLock(
+                        android.os.PowerManager.FULL_WAKE_LOCK or
+                        android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                        android.os.PowerManager.ON_AFTER_RELEASE,
+                        "Optimum:VisualAlertWakeLock"
+                    )
+                    wakeLock.acquire(5000L)
+                } catch (e: Exception) {
+                    // Ignore if wake lock fails
+                }
+
+                // If overlay permission is granted or OS allows, launch activity directly
+                try {
+                    context.startActivity(openIntent)
+                } catch (e: Exception) {
+                    // Fallback to full screen intent handled by notification
+                }
+            } else {
+                builder.setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+
+                if (isLongRingtoneEnabled) {
+                    builder.setTimeoutAfter(60_000L) // 1 dakika
+                }
             }
 
             val notification = builder.build()
 
-            if (isLongRingtoneEnabled) {
+            if (!isSilentEnabled && isLongRingtoneEnabled) {
                 notification.flags = notification.flags or android.app.Notification.FLAG_INSISTENT
             }
 

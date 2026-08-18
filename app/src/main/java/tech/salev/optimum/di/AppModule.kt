@@ -50,6 +50,9 @@ abstract class AppModule {
             // ✅ Kullanıcı eski bir sürüme dönerse (beta rollback vb.) çökmek yerine
             // temiz bir veritabanıyla başlar (tüm tablolar silinir).
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
+            // ✅ WAL modu: Eş zamanlı okuma/yazma desteği — UI okurken arka plan servisi
+            // yazabilir; bildirim + ana ekran aynı anda çalışırken kritik öneme sahip.
+            .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .build()
         }
 

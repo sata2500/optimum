@@ -21,14 +21,8 @@ data class DailyActivityData(
     val productivityPct: Int   // 0-100
 )
 
-data class AnalyticsInsight(
-    val emoji: String,
-    val title: String,
-    val description: String
-)
-
 data class AnalyticsUiState(
-    val selectedRange: AnalyticsRange = AnalyticsRange.WEEK,
+    val selectedRange: AnalyticsRange = AnalyticsRange.TODAY,
     val totalMinutes: Int = 0,
     val productivityPct: Int = 0,
     val activeDays: Int = 0,
@@ -41,12 +35,12 @@ data class AnalyticsUiState(
     val activityMinutes: Map<Long, Int> = emptyMap(),
     val dailyData: ImmutableList<DailyActivityData> = persistentListOf(),
     val heatmapData: ImmutableList<Pair<String, Int>> = persistentListOf(),
-    val insights: ImmutableList<AnalyticsInsight> = persistentListOf(),
     val evaluations: ImmutableList<DailyEvaluation> = persistentListOf(),
     val categoryPieChartData: ImmutableList<PieChartData> = persistentListOf(),
     val categoryBarChartData: ImmutableList<BarChartData> = persistentListOf(),
     val activityPieChartData: ImmutableList<PieChartData> = persistentListOf(),
     val activityBarChartData: ImmutableList<BarChartData> = persistentListOf(),
+    val allActivityPieChartData: ImmutableList<PieChartData> = persistentListOf(),
     val filterCategoryId: Long? = null,
     val filterActivityIds: Set<Long> = emptySet()
 )

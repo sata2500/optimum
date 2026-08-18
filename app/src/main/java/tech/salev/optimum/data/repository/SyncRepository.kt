@@ -1,6 +1,12 @@
 package tech.salev.optimum.data.repository
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -25,11 +31,36 @@ data class SyncPayload(
 @Singleton
 class SyncRepository @Inject constructor(
     private val optimumRepository: OptimumRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val settingsRepository: SettingsRepository
 ) {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+    private val syncScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var autoSyncJob: Job? = null
 
-    suspend fun performCloudSync(): Result<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    /**
+     * Debounced background auto-sync triggered on data modifications.
+     * Batches rapid changes (within 2 seconds) and pushes to cloud seamlessly.
+     */
+    fun triggerAutoSync() {
+        autoSyncJob?.cancel()
+        autoSyncJob = syncScope.launch {
+            try {
+                val isAutoSync = settingsRepository.isAutoSyncEnabled.first()
+                if (!isAutoSync) return@launch
+
+                val userProfile = authRepository.userProfileFlow.first()
+                if (!userProfile.isLoggedIn) return@launch
+
+                delay(2000L) // 2 second debounce
+                performCloudSync()
+            } catch (_: Exception) {
+                // Silently ignore background sync failures
+            }
+        }
+    }
+
+    suspend fun performCloudSync(): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
             val userProfile = authRepository.userProfileFlow.first()
             if (!userProfile.isLoggedIn) {
@@ -40,7 +71,7 @@ class SyncRepository @Inject constructor(
             val activities = optimumRepository.allActivities.first()
             val evaluations = optimumRepository.getAllEvaluations().first()
             
-            // Get last 30 days logs or all logs
+            // Get last 60 days logs
             val today = java.time.LocalDate.now()
             val monthAgo = today.minusDays(60)
             val logs = optimumRepository.getLogsBetweenDates(

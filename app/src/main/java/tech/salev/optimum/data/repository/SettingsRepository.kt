@@ -27,12 +27,16 @@ class SettingsRepository @Inject constructor(
         val KEY_LAST_NOTIFICATION_ID = intPreferencesKey("last_notification_id")
         val KEY_NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val KEY_LONG_RINGTONE = booleanPreferencesKey("long_ringtone")
+        val KEY_SILENT_NOTIFICATION = booleanPreferencesKey("silent_notification")
+        val KEY_SILENT_ALERT_COLOR = stringPreferencesKey("silent_alert_color")
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val KEY_AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
 
         const val DEFAULT_INTERVAL = 30
-        const val DEFAULT_START_TIME = "06:00"
-        const val DEFAULT_END_TIME = "23:30"
+        const val DEFAULT_START_TIME = "00:00"
+        const val DEFAULT_END_TIME = "23:59"
+        const val DEFAULT_SILENT_ALERT_COLOR = "#D4AF37"
         private const val DEFAULT_NOTIFICATION_ID = 1001
     }
 
@@ -58,6 +62,14 @@ class SettingsRepository @Inject constructor(
 
     val isLongRingtoneEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[KEY_LONG_RINGTONE] ?: false
+    }
+
+    val isSilentNotificationEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_SILENT_NOTIFICATION] ?: false
+    }
+
+    val silentAlertColor: Flow<String> = dataStore.data.map { prefs ->
+        prefs[KEY_SILENT_ALERT_COLOR] ?: DEFAULT_SILENT_ALERT_COLOR
     }
 
     val themeMode: Flow<ThemeMode> = dataStore.data.map { prefs ->
@@ -116,6 +128,22 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLongRingtoneEnabled(enabled: Boolean) {
         dataStore.edit { it[KEY_LONG_RINGTONE] = enabled }
+    }
+
+    suspend fun setSilentNotificationEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_SILENT_NOTIFICATION] = enabled }
+    }
+
+    suspend fun setSilentAlertColor(colorHex: String) {
+        dataStore.edit { it[KEY_SILENT_ALERT_COLOR] = colorHex }
+    }
+
+    val isAutoSyncEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_AUTO_SYNC_ENABLED] ?: true
+    }
+
+    suspend fun setAutoSyncEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_AUTO_SYNC_ENABLED] = enabled }
     }
 
     /**

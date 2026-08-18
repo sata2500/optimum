@@ -23,7 +23,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class EvaluationViewModel @Inject constructor(
-    private val repository: OptimumRepository
+    private val repository: OptimumRepository,
+    private val syncRepository: tech.salev.optimum.data.repository.SyncRepository
 ) : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -57,6 +58,7 @@ class EvaluationViewModel @Inject constructor(
                     DailyEvaluation(date = date ?: _currentDate.value,
                                    rating = rating, mood = mood, journalNote = journalNote)
                 )
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -65,6 +67,7 @@ class EvaluationViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 repository.deleteEvaluation(evaluation)
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }

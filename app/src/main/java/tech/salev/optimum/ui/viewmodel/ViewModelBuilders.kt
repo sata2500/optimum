@@ -25,7 +25,9 @@ internal data class DailyBlockInputs(
     val acts: ImmutableList<ActivityItem>,
     val dateStr: String,
     val catFilter: Set<Long>,
-    val actFilter: Set<Long>
+    val actFilter: Set<Long>,
+    /** LocalTime.now() dışarıdan geçirilerek her slot için tekrarlanan sistem çağrısı önlenir */
+    val nowTime: LocalTime = LocalTime.now()
 )
 
 internal data class MultiDayInputs(
@@ -72,15 +74,16 @@ internal object TimeSlotBuilder {
  */
 internal object DailyMergedBlocksBuilder {
     fun build(inp: DailyBlockInputs): ImmutableList<MergedTimeBlock> {
-        val logMap = inp.logs.associateBy { it.startTime }
         val catMap = inp.cats.associateBy { it.id }
         val actMap = inp.acts.associateBy { it.id }
         val dateParsed = runCatching { LocalDate.parse(inp.dateStr) }.getOrDefault(LocalDate.now())
-        val now = LocalTime.now()
+        val now = inp.nowTime // LocalTime.now() dışarıdan geçirildi — her slot için çağrı yok
         val today = LocalDate.now()
 
         return inp.slots.map { (start, end, slotTime) ->
-            val log = logMap[start]
+            val log = inp.logs.firstOrNull { l ->
+                TimeUtils.isTimeSlotOverlapping(start, end, l.startTime, l.endTime)
+            }
             val filteredOut = isFilteredOut(log, inp.catFilter, inp.actFilter)
             val displayLog = if (filteredOut) null else log
             val isPast = dateParsed.isBefore(today) || (dateParsed == today && slotTime.isBefore(now))
@@ -115,8 +118,7 @@ internal object MultiDayRowsBuilder {
             d.minusDays(1).takeIf { !it.isBefore(startDate) }
         }.toList()
 
-        val logsMap = inp.logs.groupBy { it.date }
-            .mapValues { (_, dl) -> dl.associateBy { it.startTime } }
+        val logsByDate = inp.logs.groupBy { it.date }
         val catMap = inp.cats.associateBy { it.id }
         val actMap = inp.acts.associateBy { it.id }
         val today = LocalDate.now()
@@ -125,7 +127,10 @@ internal object MultiDayRowsBuilder {
         return inp.slots.map { (start, end, slotTime) ->
             val cells = dates.map { date ->
                 val dStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val log = logsMap[dStr]?.get(start)
+                val dayLogs = logsByDate[dStr] ?: emptyList()
+                val log = dayLogs.firstOrNull { l ->
+                    TimeUtils.isTimeSlotOverlapping(start, end, l.startTime, l.endTime)
+                }
                 val filteredOut = isFilteredOut(log, inp.catFilter, inp.actFilter)
                 val displayLog = if (filteredOut) null else log
                 val isPast = date.isBefore(today) || (date == today && slotTime.isBefore(now))
@@ -155,7 +160,6 @@ internal object UnloggedSlotsBuilder {
         startStr: String,
         endStr: String
     ): ImmutableList<Pair<String, String>> {
-        val loggedTimes = logs.map { it.startTime }.toHashSet()
         val slots = mutableListOf<Pair<String, String>>()
         val now = LocalTime.now()
         var curr = TimeUtils.parseTime(startStr, LocalTime.of(6, 0))
@@ -164,7 +168,11 @@ internal object UnloggedSlotsBuilder {
         while (curr.isBefore(now) && curr.isBefore(limit)) {
             val sStr = TimeUtils.format(curr)
             val next = curr.plusMinutes(interval.toLong())
-            if (!loggedTimes.contains(sStr)) slots.add(sStr to TimeUtils.format(next))
+            val nextStr = TimeUtils.format(next)
+            val isLogged = logs.any { l ->
+                TimeUtils.isTimeSlotOverlapping(sStr, nextStr, l.startTime, l.endTime)
+            }
+            if (!isLogged) slots.add(sStr to nextStr)
             if (next.hour == 0 && next.minute == 0) break
             curr = next
         }

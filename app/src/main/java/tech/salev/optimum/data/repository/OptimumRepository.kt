@@ -30,6 +30,7 @@ interface OptimumRepository {
 
     fun getLogsForDate(date: String): Flow<List<TimeSlotLog>>
     fun getLogsBetweenDates(startDate: String, endDate: String): Flow<List<TimeSlotLog>>
+    suspend fun getAllLogs(): List<TimeSlotLog>
     suspend fun hasOverlappingLogs(date: String, startTime: String, endTime: String, excludeId: Long = -1): Boolean
     suspend fun deleteOverlappingLogs(date: String, startTime: String, endTime: String, excludeId: Long = -1)
     suspend fun insertOrUpdateLog(log: TimeSlotLog): Long

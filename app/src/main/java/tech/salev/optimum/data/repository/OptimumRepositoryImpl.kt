@@ -57,6 +57,9 @@ class OptimumRepositoryImpl @Inject constructor(
     override fun getLogsBetweenDates(startDate: String, endDate: String): Flow<List<TimeSlotLog>> =
         timeSlotLogDao.getLogsBetweenDates(startDate, endDate)
 
+    override suspend fun getAllLogs(): List<TimeSlotLog> =
+        timeSlotLogDao.getAllLogsSync()
+
     override suspend fun hasOverlappingLogs(
         date: String, startTime: String, endTime: String, excludeId: Long
     ): Boolean = timeSlotLogDao.countOverlappingLogs(date, startTime, endTime, excludeId) > 0

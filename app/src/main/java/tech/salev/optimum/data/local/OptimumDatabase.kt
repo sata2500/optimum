@@ -20,7 +20,7 @@ private const val TAG = "OptimumDB_Migration"
         TimeSlotLog::class,
         DailyEvaluation::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class OptimumDatabase : RoomDatabase() {
@@ -115,6 +115,21 @@ abstract class OptimumDatabase : RoomDatabase() {
             }
         }
 
+        /** 7 → 8: time_slot_logs.date kolonu için performans index'i eklendi */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Migrating 7 → 8: adding index on time_slot_logs.date")
+                // ÖNEMLİ: Index ismi Room'un @Index("date") annotasyonundan ürettiği
+                // "index_time_slot_logs_date" ile TAMAMEN eşleşmelidir.
+                // Migration sonrası Room schema doğrulaması yapar;
+                // isim uyuşmazlığı IllegalStateException'a yol açar.
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_time_slot_logs_date` " +
+                    "ON `time_slot_logs` (`date`)"
+                )
+            }
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // ✅ TEK KAYNAK (Single Source of Truth)
         //
@@ -133,7 +148,8 @@ abstract class OptimumDatabase : RoomDatabase() {
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
-            MIGRATION_6_7
+            MIGRATION_6_7,
+            MIGRATION_7_8
         )
     }
 }

@@ -49,7 +49,8 @@ import javax.inject.Inject
 @HiltViewModel
 class OptimumViewModel @Inject constructor(
     private val repository: OptimumRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val syncRepository: tech.salev.optimum.data.repository.SyncRepository
 ) : ViewModel() {
 
     // ── Error ────────────────────────────────────────────────────────────────
@@ -119,15 +120,13 @@ class OptimumViewModel @Inject constructor(
     // ── Daily Evaluation ─────────────────────────────────────────────────────
     // Moved to EvaluationViewModel
 
-    // ── Daily Evaluation ─────────────────────────────────────────────────────
-    // Moved to EvaluationViewModel
-
     // ── Category & Activity CRUD (Forwarded for compatibility) ───────────────
 
     fun addCategory(name: String, abbreviation: String, color: String, isCore: Boolean = true) {
         viewModelScope.launch {
             runCatching {
                 repository.insertCategory(Category(name = name, code = abbreviation, colorHex = color, isProductive = isCore))
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -136,6 +135,7 @@ class OptimumViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 repository.updateCategory(category)
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -144,6 +144,7 @@ class OptimumViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 repository.deleteCategory(category)
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -158,6 +159,7 @@ class OptimumViewModel @Inject constructor(
                                  activityNumber = nextNumber, description = description,
                                  shortCode = finalShortCode, colorHex = colorHex)
                 )
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -166,6 +168,7 @@ class OptimumViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 repository.updateActivity(activity)
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -174,9 +177,12 @@ class OptimumViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 repository.deleteActivity(activity)
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
+
+    suspend fun getAllLogs(): List<TimeSlotLog> = repository.getAllLogs()
 
     fun restoreFullBackup(backupData: tech.salev.optimum.util.OptimumBackupData) {
         viewModelScope.launch {
@@ -187,6 +193,7 @@ class OptimumViewModel @Inject constructor(
                     logs = backupData.timeLogs,
                     evaluations = backupData.evaluations
                 )
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }

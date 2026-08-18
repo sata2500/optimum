@@ -35,12 +35,18 @@ class SettingsViewModel @Inject constructor(
             isNotificationsEnabled = notif,
             isLongRingtoneEnabled = longRing
         )
+    }.combine(settingsRepository.isSilentNotificationEnabled) { state, silentNotif ->
+        state.copy(isSilentNotificationEnabled = silentNotif)
+    }.combine(settingsRepository.silentAlertColor) { state, alertColor ->
+        state.copy(silentAlertColor = alertColor)
     }.combine(settingsRepository.customRingtone) { state, ringtone ->
         state.copy(customRingtone = ringtone)
     }.combine(settingsRepository.themeMode) { state, theme ->
         state.copy(themeMode = theme)
     }.combine(settingsRepository.isOnboardingCompleted) { state, onboarding ->
         state.copy(isOnboardingCompleted = onboarding)
+    }.combine(settingsRepository.isAutoSyncEnabled) { state, autoSync ->
+        state.copy(isAutoSyncEnabled = autoSync)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
     fun onEvent(event: SettingsEvent) {
@@ -49,10 +55,17 @@ class SettingsViewModel @Inject constructor(
             is SettingsEvent.SetStartEndTime -> setStartEndTime(event.start, event.end)
             is SettingsEvent.SetNotificationsEnabled -> setNotificationsEnabled(event.enabled)
             is SettingsEvent.SetLongRingtoneEnabled -> setLongRingtoneEnabled(event.enabled)
+            is SettingsEvent.SetSilentNotificationEnabled -> setSilentNotificationEnabled(event.enabled)
+            is SettingsEvent.SetSilentAlertColor -> setSilentAlertColor(event.colorHex)
             is SettingsEvent.SetCustomRingtone -> setCustomRingtone(event.uri)
             is SettingsEvent.SetThemeMode -> setThemeMode(event.mode)
+            is SettingsEvent.SetAutoSyncEnabled -> setAutoSyncEnabled(event.enabled)
             is SettingsEvent.CompleteOnboarding -> completeOnboarding()
         }
+    }
+
+    private fun setAutoSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutoSyncEnabled(enabled) }
     }
 
     private fun setInterval(minutes: Int) {
@@ -73,6 +86,14 @@ class SettingsViewModel @Inject constructor(
 
     private fun setLongRingtoneEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setLongRingtoneEnabled(enabled) }
+    }
+
+    private fun setSilentNotificationEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setSilentNotificationEnabled(enabled) }
+    }
+
+    private fun setSilentAlertColor(colorHex: String) {
+        viewModelScope.launch { settingsRepository.setSilentAlertColor(colorHex) }
     }
 
     private fun setCustomRingtone(uri: String?) {

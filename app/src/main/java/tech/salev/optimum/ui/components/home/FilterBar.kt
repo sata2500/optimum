@@ -1,36 +1,25 @@
 package tech.salev.optimum.ui.components.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,17 +33,13 @@ import tech.salev.optimum.data.model.Category
 import tech.salev.optimum.util.ColorUtils
 
 /**
- * Expandable filter panel with category and activity chip rows.
- *
- * The panel stays collapsed by default. When the user taps the header it
- * expands to reveal two [LazyRow]s — one for categories, one for the
- * activities belonging to the selected categories.
- *
- * Selections are multi-select: tapping a chip toggles membership in the
- * filter set. "Tümü" resets everything.
+ * Filter panel revealed via pull-down gesture on the timeline.
+ * Hidden by default to keep the main view clean and distraction-free.
  */
 @Composable
 fun FilterBar(
+    isVisible: Boolean,
+    onClose: () -> Unit,
     categories: ImmutableList<Category>,
     activities: ImmutableList<ActivityItem>,
     selectedCategoryIds: Set<Long>,
@@ -65,41 +50,93 @@ fun FilterBar(
 ) {
     if (categories.isEmpty()) return
 
-    var isExpanded by rememberSaveable { mutableStateOf(false) }
+    val hasActiveFilters = selectedCategoryIds.isNotEmpty() || selectedActivityIds.isNotEmpty()
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        // ── Collapse / expand header ──────────────────────────────────────
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+    ) {
         Surface(
-            onClick = { isExpanded = !isExpanded },
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Filtreleri Gizle" else "Filtreleri Göster",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Filtreler",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-
-        // ── Expanded content ──────────────────────────────────────────────
-        AnimatedVisibility(visible = isExpanded) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Header with title, clear button, and close icon
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Filtreler",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (hasActiveFilters) {
+                            TextButton(
+                                onClick = {
+                                    onCategoryFilterChanged(emptySet())
+                                    onActivityFilterChanged(emptySet())
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.RestartAlt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "Temizle",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Filtreleri Kapat",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Category Filter Row
                 CategoryChipRow(
                     categories = categories,
                     selectedIds = selectedCategoryIds,
@@ -109,6 +146,7 @@ fun FilterBar(
                     }
                 )
 
+                // Activity Filter Row
                 val visibleActivities = remember(selectedCategoryIds, activities) {
                     if (selectedCategoryIds.isEmpty()) activities
                     else activities.filter { selectedCategoryIds.contains(it.categoryId) }
@@ -138,14 +176,14 @@ private fun CategoryChipRow(
     onSelectionChanged: (Set<Long>) -> Unit
 ) {
     Text(
-        "Kategoriler",
+        text = "Kategoriler",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 4.dp)
+        modifier = Modifier.padding(horizontal = 2.dp)
     )
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         item {
@@ -181,14 +219,14 @@ private fun ActivityChipRow(
     onSelectionChanged: (Set<Long>) -> Unit
 ) {
     Text(
-        "Aktiviteler",
+        text = "Aktiviteler",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 4.dp)
+        modifier = Modifier.padding(horizontal = 2.dp)
     )
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         item {
@@ -213,24 +251,24 @@ private fun ActivityChipRow(
                         selectedIds - activity.id else selectedIds + activity.id
                     onSelectionChanged(newSet)
                 },
-                shape = RoundedCornerShape(16.dp),
-                color = if (selectedIds.contains(activity.id)) color.copy(alpha = 0.15f)
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(14.dp),
+                color = if (selectedIds.contains(activity.id)) color.copy(alpha = 0.2f)
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
                 border = if (selectedIds.contains(activity.id))
-                             BorderStroke(1.dp, color.copy(alpha = 0.5f)) else null,
-                modifier = Modifier.height(32.dp)
+                             BorderStroke(1.dp, color.copy(alpha = 0.6f)) else null,
+                modifier = Modifier.height(30.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 4.dp, end = 12.dp)
+                    modifier = Modifier.padding(start = 4.dp, end = 10.dp)
                 ) {
-                    Surface(shape = CircleShape, color = color, modifier = Modifier.size(24.dp)) {
+                    Surface(shape = CircleShape, color = color, modifier = Modifier.size(20.dp)) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = displayCode,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
                                 color = Color.White
                             )
                         }
@@ -238,7 +276,7 @@ private fun ActivityChipRow(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = activity.name,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (selectedIds.contains(activity.id)) color
                                 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -260,28 +298,28 @@ private fun FilterChipItem(
     Surface(
         selected = isSelected,
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) color.copy(alpha = 0.15f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = if (isSelected) BorderStroke(1.dp, color.copy(alpha = 0.5f)) else null,
-        modifier = Modifier.height(32.dp)
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected) color.copy(alpha = 0.2f)
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+        border = if (isSelected) BorderStroke(1.dp, color.copy(alpha = 0.6f)) else null,
+        modifier = Modifier.height(30.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp)
+            modifier = Modifier.padding(horizontal = 10.dp)
         ) {
             if (dotColor != null) {
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
+                        .size(8.dp)
                         .clip(CircleShape)
                         .background(dotColor)
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(5.dp))
             }
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant
             )

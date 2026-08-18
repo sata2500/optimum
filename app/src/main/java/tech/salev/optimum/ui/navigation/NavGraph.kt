@@ -22,8 +22,6 @@ import tech.salev.optimum.ui.screens.SettingsScreen
 import tech.salev.optimum.ui.viewmodel.OptimumViewModel
 import tech.salev.optimum.ui.viewmodel.SettingsViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
-
-import tech.salev.optimum.ui.screens.ProfileScreen
 import tech.salev.optimum.ui.viewmodel.ProfileViewModel
 
 @Composable
@@ -36,14 +34,15 @@ fun MainAppNavigation(
     val homeViewModel: tech.salev.optimum.ui.viewmodel.HomeViewModel = hiltViewModel()
     val evaluationViewModel: tech.salev.optimum.ui.viewmodel.EvaluationViewModel = hiltViewModel()
     val profileViewModel: ProfileViewModel = hiltViewModel()
+
     // Observe onboarding state — drives start destination
     val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsStateWithLifecycle()
 
+    // 4 Primary Bottom Bar Tabs: Çizelge, Kategoriler, Analiz, Ayarlar
     val items = listOf(
         Screen.Home,
         Screen.Categories,
         Screen.Analytics,
-        Screen.Profile,
         Screen.Settings
     )
 
@@ -142,11 +141,13 @@ fun MainAppNavigation(
             composable<Screen.Analytics> {
                 AnalyticsEvaluationScreen(optimumViewModel = viewModel)
             }
-            composable<Screen.Profile> {
-                ProfileScreen(profileViewModel = profileViewModel)
-            }
             composable<Screen.Settings> {
-                SettingsScreen(viewModel = viewModel, settingsViewModel = settingsViewModel, evaluationViewModel = evaluationViewModel)
+                SettingsScreen(
+                    viewModel = viewModel,
+                    settingsViewModel = settingsViewModel,
+                    evaluationViewModel = evaluationViewModel,
+                    profileViewModel = profileViewModel
+                )
             }
         }
     }

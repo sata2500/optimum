@@ -17,13 +17,13 @@ val localProperties = Properties().apply {
 
 android {
     namespace = "tech.salev.optimum"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "tech.salev.optimum"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 41
-        versionName = "2.0.4"
+        targetSdk = 37
+        versionCode = 52
+        versionName = "2.4.0"
     }
 
     signingConfigs {
@@ -143,12 +143,18 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.kotlinx.coroutines.play.services)
 
+  // Image Loading (Coil 3 for Profile Pictures — KMP-ready)
+  implementation(libs.coil.compose)
+  implementation(libs.coil.network.okhttp)
+
   // Tooling & Testing
   debugImplementation(libs.androidx.compose.ui.tooling)
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  androidTestImplementation(libs.androidx.test.runner)
+  androidTestImplementation(libs.androidx.test.ext.junit)
 }
 
 kotlin {

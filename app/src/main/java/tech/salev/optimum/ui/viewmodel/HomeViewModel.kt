@@ -3,32 +3,38 @@ package tech.salev.optimum.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import tech.salev.optimum.data.model.ActivityItem
+import tech.salev.optimum.data.model.Category
 import tech.salev.optimum.data.model.TimeSlotLog
 import tech.salev.optimum.data.repository.OptimumRepository
 import tech.salev.optimum.data.repository.SettingsRepository
 import tech.salev.optimum.ui.model.MergedTimeBlock
 import tech.salev.optimum.ui.model.MultiDayRow
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: OptimumRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val syncRepository: tech.salev.optimum.data.repository.SyncRepository
 ) : ViewModel() {
 
     // ── Streams that were in OptimumViewModel ──────────────────────────────────────────────────────────────
@@ -67,38 +73,77 @@ class HomeViewModel @Inject constructor(
         TimeSlotBuilder.build(interval, start, end)
     }
 
-    private val dailyMergedBlocks = combine(
-        combine(timeSlots, currentLogs, categories, activities) { s, l, c, a ->
-            DailyBlockInputs(slots = s, logs = l, cats = c, acts = a, dateStr = "", catFilter = emptySet(), actFilter = emptySet())
-        },
-        combine(currentDate, selectedFilterCategoryId, selectedFilterActivityId) { d, cF, aF ->
-            Triple(d, cF, aF)
-        }
-    ) { partialInput, filters ->
-        val inputs = partialInput.copy(
-            dateStr = filters.first,
-            catFilter = filters.second,
-            actFilter = filters.third
-        )
-        DailyMergedBlocksBuilder.build(inputs)
+    // ── combine() max 5 akış typed overload sınırı — ara sarmalayıcılar ile çözüm ──────────────────────────
+    // Kotlin Flow combine() 6+ akış için vararg kullanır ve Array<Any!> döner (tip güvenli değil).
+    // Çözüm: ara data class sarmalayıcılarla 2 aşamalı combine zinciri.
+    // flowOn(Default): ağır hesaplamalar Main thread'i bloke etmez.
+    // distinctUntilChanged(): aynı state tekrar emit edilmez.
+
+    // Aşama 1a: temel slot/log verisi + filtre context'i
+    private data class DailyInputBundle(
+        val slots: ImmutableList<Triple<String, String, LocalTime>>,
+        val logs: ImmutableList<TimeSlotLog>,
+        val cats: ImmutableList<Category>,
+        val acts: ImmutableList<ActivityItem>,
+        val dateStr: String
+    )
+
+    private val dailyBundle = combine(timeSlots, currentLogs, categories, activities, currentDate) {
+        slots, logs, cats, acts, dateStr -> DailyInputBundle(slots, logs, cats, acts, dateStr)
     }
 
-    private val multiDayRows = combine(
-        combine(timeSlots, multiDayLogs, categories, activities) { s, l, c, a ->
-            MultiDayInputs(slots = s, logs = l, cats = c, acts = a, dateStr = "", days = 1, catFilter = emptySet(), actFilter = emptySet())
-        },
-        combine(currentDate, daysToView, selectedFilterCategoryId, selectedFilterActivityId) { d, days, cF, aF ->
-            listOf(d, days, cF, aF) // a simple wrapper
-        }
-    ) { partialInput, filters ->
-        val inputs = partialInput.copy(
-            dateStr = filters[0] as String,
-            days = filters[1] as Int,
-            catFilter = filters[2] as Set<Long>,
-            actFilter = filters[3] as Set<Long>
+    // Aşama 1b: bundle + filtreler → nihai hesaplama (2+1 = 3 akış, sınır içinde)
+    private val dailyMergedBlocks = combine(
+        dailyBundle, selectedFilterCategoryId, selectedFilterActivityId
+    ) { bundle, catFilter, actFilter ->
+        DailyMergedBlocksBuilder.build(
+            DailyBlockInputs(
+                slots = bundle.slots,
+                logs = bundle.logs,
+                cats = bundle.cats,
+                acts = bundle.acts,
+                dateStr = bundle.dateStr,
+                catFilter = catFilter,
+                actFilter = actFilter,
+                nowTime = LocalTime.now()
+            )
         )
-        MultiDayRowsBuilder.build(inputs)
+    }.flowOn(Dispatchers.Default).distinctUntilChanged()
+
+    // Aşama 2a: multi-day slot/log verisi + context
+    private data class MultiDayInputBundle(
+        val slots: ImmutableList<Triple<String, String, LocalTime>>,
+        val logs: ImmutableList<TimeSlotLog>,
+        val cats: ImmutableList<Category>,
+        val acts: ImmutableList<ActivityItem>,
+        val dateStr: String
+    )
+
+    private val multiDayBundle = combine(timeSlots, multiDayLogs, categories, activities, currentDate) {
+        slots, logs, cats, acts, dateStr -> MultiDayInputBundle(slots, logs, cats, acts, dateStr)
     }
+
+    // Aşama 2b: bundle + days + filtre → nihai hesaplama
+    private data class MultiDayFilterState(val days: Int, val catFilter: Set<Long>, val actFilter: Set<Long>)
+
+    private val multiDayFilterState = combine(
+        daysToView, selectedFilterCategoryId, selectedFilterActivityId
+    ) { days, catF, actF -> MultiDayFilterState(days, catF, actF) }
+
+    private val multiDayRows = combine(multiDayBundle, multiDayFilterState) { bundle, filter ->
+        MultiDayRowsBuilder.build(
+            MultiDayInputs(
+                slots = bundle.slots,
+                logs = bundle.logs,
+                cats = bundle.cats,
+                acts = bundle.acts,
+                dateStr = bundle.dateStr,
+                days = filter.days,
+                catFilter = filter.catFilter,
+                actFilter = filter.actFilter
+            )
+        )
+    }.flowOn(Dispatchers.Default).distinctUntilChanged()
 
     private val unloggedPastSlots = combine(
         currentLogs, intervalMinutes, dayStartTime, dayEndTime
@@ -106,26 +151,53 @@ class HomeViewModel @Inject constructor(
         UnloggedSlotsBuilder.build(logs, interval, start, end)
     }
 
+    // uiState: Ana state combine — 5 akış (sınır içinde), ikinci zincir kalan alanlar
+    private data class UiStateCore(
+        val categories: ImmutableList<Category>,
+        val activities: ImmutableList<ActivityItem>,
+        val intervalMinutes: Int,
+        val unloggedPastSlots: ImmutableList<Pair<String, String>>,
+        val dailyMergedBlocks: ImmutableList<MergedTimeBlock>
+    )
+
+    private val uiStateCore = combine(
+        categories, activities, intervalMinutes, unloggedPastSlots, dailyMergedBlocks
+    ) { cats, acts, interval, unlogged, daily ->
+        UiStateCore(cats, acts, interval, unlogged, daily)
+    }
+
+    private data class UiStateExtra(
+        val multiDayRows: ImmutableList<MultiDayRow>,
+        val currentDateStr: String,
+        val daysToView: Int,
+        val errorMessage: String?,
+        val selectedFilterCategoryId: Set<Long>
+    )
+
+    private val uiStateExtra = combine(
+        multiDayRows, currentDate, daysToView, errorMessage, selectedFilterCategoryId
+    ) { multi, date, days, err, catF ->
+        UiStateExtra(multi, date, days, err, catF)
+    }
+
     val uiState: StateFlow<HomeUiState> = combine(
-        combine(categories, activities, intervalMinutes) { cats, acts, interval -> Triple(cats, acts, interval) },
-        combine(unloggedPastSlots, dailyMergedBlocks, multiDayRows) { unlogged, daily, multi -> Triple(unlogged, daily, multi) },
-        combine(currentDate, daysToView, errorMessage) { date, days, err -> Triple(date, days, err) },
-        combine(selectedFilterCategoryId, selectedFilterActivityId) { catF, actF -> Pair(catF, actF) }
-    ) { f1, f2, f3, f4 ->
+        uiStateCore, uiStateExtra, selectedFilterActivityId
+    ) { core, extra, actF ->
         HomeUiState(
-            categories = f1.first,
-            activities = f1.second,
-            intervalMinutes = f1.third,
-            unloggedPastSlots = f2.first,
-            dailyMergedBlocks = f2.second,
-            multiDayRows = f2.third,
-            currentDateStr = f3.first,
-            daysToView = f3.second,
-            errorMessage = f3.third,
-            selectedFilterCategoryId = f4.first,
-            selectedFilterActivityId = f4.second
+            categories = core.categories,
+            activities = core.activities,
+            intervalMinutes = core.intervalMinutes,
+            unloggedPastSlots = core.unloggedPastSlots,
+            dailyMergedBlocks = core.dailyMergedBlocks,
+            multiDayRows = extra.multiDayRows,
+            currentDateStr = extra.currentDateStr,
+            daysToView = extra.daysToView,
+            errorMessage = extra.errorMessage,
+            selectedFilterCategoryId = extra.selectedFilterCategoryId,
+            selectedFilterActivityId = actF
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
 
     fun onEvent(event: HomeEvent) {
         when (event) {
@@ -151,6 +223,7 @@ class HomeViewModel @Inject constructor(
                         activityId = event.activityId, note = event.note
                     )
                 )
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
@@ -162,14 +235,17 @@ class HomeViewModel @Inject constructor(
                     repository.deleteOverlappingLogs(log.date, log.startTime, log.endTime, log.id)
                     repository.insertOrUpdateLog(log)
                 }
+                syncRepository.triggerAutoSync()
             }.onFailure { handleError(it) }
         }
     }
 
     private fun deleteTimeLog(date: String, startTime: String) {
         viewModelScope.launch {
-            runCatching { repository.deleteLogByDateAndStartTime(date, startTime) }
-                .onFailure { handleError(it) }
+            runCatching {
+                repository.deleteLogByDateAndStartTime(date, startTime)
+                syncRepository.triggerAutoSync()
+            }.onFailure { handleError(it) }
         }
     }
 

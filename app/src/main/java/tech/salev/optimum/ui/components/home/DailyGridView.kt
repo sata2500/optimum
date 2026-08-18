@@ -41,15 +41,30 @@ fun DailyGridView(
         }
     }
 
-    // Table header
+    // Table header with vertical dividers
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Saat", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-        Text("Kategori", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-        Text("Aktivite", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-        Text("Süre", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
+        Text("Saat", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        androidx.compose.material3.VerticalDivider(
+            modifier = Modifier.padding(horizontal = 6.dp).height(14.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+        Text("Kategori", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        androidx.compose.material3.VerticalDivider(
+            modifier = Modifier.padding(horizontal = 6.dp).height(14.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+        Text("Aktiviteler", modifier = Modifier.weight(2.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        androidx.compose.material3.VerticalDivider(
+            modifier = Modifier.padding(horizontal = 6.dp).height(14.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+        Text("Süre", modifier = Modifier.weight(0.7f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
     }
 
     LazyColumn(
