@@ -22,8 +22,8 @@ android {
         applicationId = "tech.salev.optimum"
         minSdk = 26
         targetSdk = 37
-        versionCode = 52
-        versionName = "2.4.0"
+        versionCode = 55
+        versionName = "2.4.3"
     }
 
     signingConfigs {
@@ -41,6 +41,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
         }
         debug {
             isMinifyEnabled = false

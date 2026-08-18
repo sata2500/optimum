@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -108,18 +107,6 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    // Filtre açma ikonu — pull-down gesture için discovery hint
-                    if (categories.isNotEmpty() && !isFilterVisible) {
-                        IconButton(onClick = { isFilterVisible = true }) {
-                            Icon(
-                                imageVector = if (hasActiveFilters) Icons.Default.FilterAlt
-                                              else Icons.Default.FilterList,
-                                contentDescription = "Filtreleri Aç",
-                                tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                     if (unloggedPastSlots.isNotEmpty() && categories.isNotEmpty()) {
                         FilledTonalButton(
                             onClick = { showCatchUpDialog = true },

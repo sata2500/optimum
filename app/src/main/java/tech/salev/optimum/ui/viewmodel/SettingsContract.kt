@@ -4,8 +4,8 @@ import tech.salev.optimum.data.repository.ThemeMode
 
 data class SettingsUiState(
     val intervalMinutes: Int = 30,
-    val dayStartTime: String = "08:00",
-    val dayEndTime: String = "23:59",
+    val dayStartTime: String = "06:00",
+    val dayEndTime: String = "23:30",
     val isNotificationsEnabled: Boolean = true,
     val isLongRingtoneEnabled: Boolean = false,
     val isSilentNotificationEnabled: Boolean = false,

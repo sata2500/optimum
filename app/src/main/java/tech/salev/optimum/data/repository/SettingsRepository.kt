@@ -34,8 +34,8 @@ class SettingsRepository @Inject constructor(
         val KEY_AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
 
         const val DEFAULT_INTERVAL = 30
-        const val DEFAULT_START_TIME = "00:00"
-        const val DEFAULT_END_TIME = "23:59"
+        const val DEFAULT_START_TIME = "08:00"
+        const val DEFAULT_END_TIME = "23:00"
         const val DEFAULT_SILENT_ALERT_COLOR = "#D4AF37"
         private const val DEFAULT_NOTIFICATION_ID = 1001
     }
